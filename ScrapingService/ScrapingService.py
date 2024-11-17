@@ -1,4 +1,7 @@
 # Scraping Service Library to get housing data
+import math
+import os
+
 import numpy as np
 
 
@@ -8,7 +11,7 @@ class ScrapingService:
         pass
 
     # STEP 1: Get the links from the main page of house selling in a given city. Get the Links in an iterattive way, store it in a Database, update it
-    def getLinkDB (self, pages=10):
+    def getLinkDB (self, pages=10, filterString=""):
         import requests
         from bs4 import BeautifulSoup
         import pandas as pd
@@ -24,7 +27,7 @@ class ScrapingService:
         pageLinks = []
         for page in range(pag_max):
             print("Processing page...", page)
-            target_url = "https://www.immobiliare.it/vendita-case/" + self.city.lower() + "/?pag=" + str(
+            target_url = "https://www.immobiliare.it/vendita-case/" + self.city.lower() + "/?" + filterString + "pag=" + str(
                 pag_max + random.choice(range(0, 71)))
 
             resp = requests.get(target_url, headers=headers)
@@ -51,10 +54,10 @@ class ScrapingService:
 
         return updatedFiles
 
-    def massiveLinkScraper(self, pages, iterations):
+    def massiveLinkScraper(self, pages, iterations, filterString):
         for i in range(iterations):
             print('Iteration:', i)
-            data = self.getLinkDB(pages)
+            data = self.getLinkDB(pages, filterString)
         # The last data after the iteration is enough, since the function getLinkDB returns the already-updated Database
         return data
 
@@ -73,8 +76,12 @@ class ScrapingService:
         notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\not_available_links.xlsx")
         linksToProcess = updatedFiles[~updatedFiles['ID'].isin(existing['ID']) & ~updatedFiles['link'].isin(notAvailableLinks['link'])].reset_index(drop=True)
         unavailableLinks = []
+        responseList = []
         charDB = []
         for n, offer in enumerate(linksToProcess['link']):
+
+            if offer == 'https://www.immobiliare.it/annunci/116091343/':
+                print('qui')
 
             # General
             respI = requests.get(offer, headers=headers)
@@ -90,7 +97,12 @@ class ScrapingService:
                 for single_divI in div_genI:
                     geoGen = single_divI.text
                     singleGeo.append(geoGen)
-                singleGeoDF = pd.DataFrame(singleGeo).transpose().set_axis(["City", "Area", "Adress"], axis=1)
+                # Hard-code to prevent the algorithm to fail, whenever the address is hidden (could be hidden sometimes for privacy Reason)
+                if len(singleGeo) == 2:
+                    singleGeoDF = pd.DataFrame(singleGeo).transpose().set_axis(["City", "Area"], axis=1)
+                    singleGeoDF = pd.concat([singleGeoDF, pd.DataFrame(pd.Series(math.nan))], axis = 1).set_axis(["City", "Area", "Adress"], axis=1)
+                else:
+                    singleGeoDF = pd.DataFrame(singleGeo).transpose().set_axis(["City", "Area", "Adress"], axis=1)
 
                 # ---Prezzo---
                 div_genJ = soupI.find_all("div", class_="re-overview__price")
@@ -110,7 +122,7 @@ class ScrapingService:
                     if ('bagn' in value.text) & (multipleB):
                         toiletAll = value.text
                         multipleB = False
-                    if ('locali' in value.text) & (multipleL):
+                    if ('local' in value.text) & (multipleL):
                         roomsAll = value.text
                         multipleL = False
                     if ('Piano' in value.text) & (multipleF):
@@ -134,21 +146,38 @@ class ScrapingService:
                 charDB.append(tmpData)
 
             except Exception as e:
-                print('Link Not available!')
-                unavailableLinks.append(offer)
+                # Customze the errors not to lose any data
+                if respI.status_code == 404:
+                    print('Error: Link Not available or Offer not Found!')
+                    unavailableLinks.append(offer)
+                    # Logging List
+                    responseList.append('Offer: ' + offer + ' - Status: ' + str(respI.status_code) + " - Message: Link Not available or Offer not Found!")
+                else:
+                    # Logging List
+                    responseList.append('Offer: ' + offer + ' - Status: ' + str(respI.status_code) + " - Message: " + str(e))
+                    print('Error:', e)  # Print the Customized Error
 
         # Handle unavailable links first (unique database)
-        naLinks = pd.concat([pd.DataFrame(unavailableLinks), pd.DataFrame(np.full(self.city, len(unavailableLinks)))],
-                            axis = 1).set_axis(['link', 'city'], axis = 1)
-        naLinks.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\not_available_links.xlsx", index=False,
-                         engine='xlsxwriter')
+        if len(unavailableLinks) > 0:
+            naLinks = pd.concat([pd.DataFrame(unavailableLinks), pd.DataFrame(np.full(len(unavailableLinks), self.city))],
+                                axis = 1).set_axis(['link', 'city'], axis = 1)
+            notAvailableLinks = pd.concat([notAvailableLinks, naLinks], axis = 0).reset_index(drop = True)
+            notAvailableLinks.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\not_available_links.xlsx", index=False,
+                             engine='xlsxwriter')
+        # Populate the Scraping Log file
+        current_dir = os.path.dirname(__file__)
+        log_file_path = os.path.join(current_dir, 'scrapingLogs.txt')
+        with open(log_file_path, 'w') as file:
+            logFile = "\n".join(responseList)
+            file.write(logFile)
 
+        # Now, aggregate the data
         aggregatedData = pd.concat([df for df in charDB], axis=0).reset_index(drop=True)
         aggregatedData = aggregatedData.merge(updatedFiles, on='link').drop_duplicates(
             subset=['Adress', 'Price']).reset_index(drop=True)
 
         # Get the existing data, concat, drop duplicates
-        aggregatedData = pd.concat([existing, aggregatedData], axis=1).drop_duplicates(keep='last').reset_index(drop=True)
+        aggregatedData = pd.concat([existing, aggregatedData], axis=0).drop_duplicates(keep='last').reset_index(drop=True)
         # Save to excel
         aggregatedData.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_all_tmp.xlsx", index=False,
                                 engine='xlsxwriter')
@@ -170,13 +199,15 @@ class ScrapingService:
         # Price
         aggregatedData['Decrease'] = aggregatedData['Price'].str.split('0€').str[1]
         aggregatedData['Price'] = aggregatedData['Price'].str.split('0€').str[0]
-        aggregatedData['Decrease'] = aggregatedData['Price'].str.split('0Prezzo').str[1]
-        aggregatedData['Price'] = aggregatedData['Price'].str.split('0Prezzo').str[0]
         aggregatedData.loc[~aggregatedData['Decrease'].isnull(), 'Price'] = aggregatedData['Price'] + '0'
+        # This part has been commented, since the string "0Prezzo" is only for newly-built houses, that we exlude from
+        # the clean data.
+        #aggregatedData['Decrease'] = aggregatedData['Price'].str.split('0Prezzo').str[1]
+        aggregatedData['Price'] = aggregatedData['Price'].str.split('0Prezzo').str[0]
 
         aggregatedData = aggregatedData[
             ~aggregatedData['Price'].str.contains(' - ') & ~aggregatedData['Price'].str.contains('da')
-            & ~aggregatedData['Price'].str.contains('Prezzo su richiesta')].reset_index(drop=True)
+            & ~aggregatedData['Price'].str.contains('Prezzo su richiesta') & ~aggregatedData['Price'].str.contains('Venduto')].reset_index(drop=True)
         aggregatedData['Price'] = aggregatedData['Price'].str.replace('€ ', '').str.replace('.', '')
         aggregatedData['Price'] = aggregatedData['Price'].astype(int)
 
@@ -221,9 +252,9 @@ class ScrapingService:
 
         return aggregatedData
 
-    def launchScraping (self, pages, iterations):
+    def launchScraping (self, pages, iterations, filterString):
         # Put all the functions together
-        step1 = self.massiveLinkScraper(pages, iterations)
+        step1 = self.massiveLinkScraper(pages, iterations, filterString)
         step2 = self.extractFeaturesFromLinks(step1)
         step3 = self.cleanOffersDatabase(step2)
         return step3
