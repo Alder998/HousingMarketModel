@@ -244,6 +244,10 @@ class ScrapingService:
         # Compute price per square meter
         aggregatedData['Price per square meter'] = aggregatedData['Price'] / aggregatedData['Size']
 
+        # Same Address and same size means a duplicate, therefore remove it
+        aggregatedData = aggregatedData.drop_duplicates(subset=['Adress', 'Size'])
+
+        # Reset Index
         aggregatedData = aggregatedData.reset_index(drop=True)
         aggregatedData.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_all_clean.xlsx", index=False,
                                 engine='xlsxwriter')
