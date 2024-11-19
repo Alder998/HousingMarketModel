@@ -263,6 +263,11 @@ class ScrapingService:
         step3 = self.cleanOffersDatabase(step2)
         return step3
 
+    def launchGeneralizedScraping (self, pages, iterations):
+        filterList = ["localiMinimo=1&localiMassimo=1&","localiMinimo=2&localiMassimo=2&",
+                      "localiMinimo=3&localiMassimo=3&","localiMinimo=4&localiMassimo=4&"]
+        for singleFilter in filterList:
+            iterationRoom = self.launchScraping(pages, iterations, singleFilter)
 
 
 
