@@ -1,9 +1,9 @@
 # Scraping Service Library to get housing data
 import math
 import os
-
+from Utils import Database as d
 import numpy as np
-
+from dotenv import load_dotenv
 
 class ScrapingService:
     def __init__(self, city):
@@ -16,6 +16,13 @@ class ScrapingService:
         from bs4 import BeautifulSoup
         import pandas as pd
         import random
+
+        # First, load the SQL credencials
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
 
         # Take data from Immobiliare.it, store the data
 
@@ -51,6 +58,18 @@ class ScrapingService:
         updatedFiles = pd.concat([existingFile, pageLinks], axis=0).drop_duplicates().reset_index(drop=True)
         updatedFiles.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_tmp.xlsx", index=False)
         print('Number of houses in DB:', len(updatedFiles['link']))
+
+        # Update (SQL, with customized table name)
+        db_name = 'offerLinkTable_'+self.city
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        # Get all table in DB
+        allTables = database.getAllTablesInDatabase()
+        # if the table is present, append, otherwhise, create
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(updatedFiles, db_name)
+        else:
+            database.createTable(updatedFiles, db_name)
 
         return updatedFiles
 
@@ -188,7 +207,12 @@ class ScrapingService:
 
     def cleanOffersDatabase(self, dataRaw):
 
-        import pandas as pd
+        # Load the SQL credencials
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
 
         # STEP 3: Clean the Database, obtain data that could be processed by a Model
         aggregatedData = dataRaw
@@ -253,6 +277,18 @@ class ScrapingService:
                                 engine='xlsxwriter')
 
         print('Processable offers after data cleaning:', len(aggregatedData['Size']))
+
+        # Update (SQL, with customized table name)
+        db_name = 'offerDetailDatabase_'+self.city
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        # Get all table in DB
+        allTables = database.getAllTablesInDatabase()
+        # if the table is present, append, otherwhise, create
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(aggregatedData, db_name)
+        else:
+            database.createTable(aggregatedData, db_name)
 
         return aggregatedData
 

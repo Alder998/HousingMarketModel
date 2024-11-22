@@ -19,12 +19,13 @@ class Database:
         data = pd.read_sql(query, engine)
         return data
 
-    def createTable (self, data, newTableName):
+    def createTable (self, data, newTableName, check_rows=True):
 
-        # Check if the table already exists
-        allTables = self.getAllTablesInDatabase()
-        if allTables.isin(allTables['table_name']):
-            raise Exception('ERROR: Table Already Present in the Database! It is recommended to use an append method!')
+        if check_rows:
+            # Check if the table already exists
+            allTables = self.getAllTablesInDatabase()
+            if allTables['table_name'].str.contains(newTableName).any():
+                raise Exception('ERROR: Table Already Present in the Database! It is recommended to use an append method!')
 
         file = data
         connection = psycopg2.connect(
@@ -47,21 +48,21 @@ class Database:
         for singleColumnInExistingTable in existingData.columns:
             if singleColumnInExistingTable in dataToAppend.columns:
                 columnCheck.append(singleColumnInExistingTable)
-        if (len(columnCheck) != dataToAppend.columns) | (len(existingData.columns) != dataToAppend.columns):
+        if (len(columnCheck) != len(dataToAppend.columns)) | (len(existingData.columns) != len(dataToAppend.columns)):
             raise Exception('ERROR: The columns from the new table do not match the Table columns in the existing Table!')
 
         # if everything is ok, we can proceed
         finalData = pd.concat([existingData, dataToAppend], axis = 0).drop_duplicates(keep='first').reset_index(drop=True)
-        self.createTable(finalData, tableName)
+        self.createTable(finalData, tableName, check_rows=False) # Creation without checking that the Table is existing
 
         return finalData
 
     def getAllTablesInDatabase (self):
         engine = create_engine('postgresql://' + self.user + ':' + self.password + '@localhost:' + self.port + '/' + self.db)
-        query = "SELECT table_schema, table_name"
-        "FROM information_schema.tables \n"
-        "WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') \n"
-        "ORDER BY table_schema, table_name;"
+        query = ("SELECT table_schema, table_name"+
+                 " FROM information_schema.tables \n"+
+                 " WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') \n"+
+                 " ORDER BY table_schema, table_name;")
 
         data = pd.read_sql(query, engine)
 
