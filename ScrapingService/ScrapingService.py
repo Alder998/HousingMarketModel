@@ -4,6 +4,10 @@ import os
 from Utils import Database as d
 import numpy as np
 from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import random
 
 class ScrapingService:
     def __init__(self, city):
@@ -12,10 +16,6 @@ class ScrapingService:
 
     # STEP 1: Get the links from the main page of house selling in a given city. Get the Links in an iterattive way, store it in a Database, update it
     def getLinkDB (self, pages=10, filterString=""):
-        import requests
-        from bs4 import BeautifulSoup
-        import pandas as pd
-        import random
 
         # First, load the SQL credencials
         load_dotenv('App.env')
@@ -304,6 +304,119 @@ class ScrapingService:
                       "localiMinimo=3&localiMassimo=3&","localiMinimo=4&localiMassimo=4&"]
         for singleFilter in filterList:
             iterationRoom = self.launchScraping(pages, iterations, singleFilter)
+
+    def launchNewsScraper (self, subsample = 100):
+
+        # Get the data
+        city = self.city
+
+        # Load the SQL credencials
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        database = d.Database(database_user, database_password, database_port, database_db)
+        # Get all table in DB
+        data = database.getDataFromLocalDatabase("offerDetailDatabase_" + city + "")
+        data = data.dropna(subset=['Adress'])
+
+        db_name = 'newsDatabase_'+self.city
+        allTables = database.getAllTablesInDatabase()
+        # if the table is present, Exclude already processed streets, override
+        if allTables['table_name'].str.contains(db_name).any():
+            existingData = database.getDataFromLocalDatabase(db_name)
+            data = data[~data['Adress'].isin(existingData['Address'])].reset_index(drop=True)
+            print('Addresses Already in DB:', len(existingData['Address'].unique()))
+            print('Number of Processable Addresses:', len(data['Adress'].unique()))
+            addressAvailable = len(existingData['Address'].unique()) - len(data['Adress'].unique())
+        else:
+            addressAvailable = len(data['Adress'].unique())
+
+        # Start Scraping
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"}
+
+        # Isolate the addresses
+        newsPerStreet = []
+        for i, address in enumerate(data['Adress'][0:min(subsample, addressAvailable)].unique()):
+            #print(address)
+            area = data['Area'][data['Adress'] == address].reset_index(drop=True)[0]
+            print(
+                'Processing...' + address + ' (' + area + ') - ' + str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%')
+            address = address.replace(',', '')
+            # Now, scrape news about the street/Area
+            # get the address in a fungible format
+            addressForScrape = '+'.join(address.lower().split(' '))  # + '+' + city.lower()
+            streetLink = 'https://www.milanotoday.it/search/query/' + addressForScrape + '/channel/cronaca'
+            # print(streetLink)
+            respJ = requests.get(streetLink, headers=headers)
+            soupJ = BeautifulSoup(respJ.text, 'html.parser')
+
+            # Get the entire news element, for each News
+            entireArticle = soupJ.find_all("article", class_="c-story c-story--search u-py-medium nw_result_articolo")
+            # Iterate for each Component
+            allNewsData = []
+            for component in entireArticle:
+
+                # Take the single component for each article
+                # Title
+                title = component.find("header", class_="c-story__header")
+                title = title.text.replace('\n', '')
+                # Subtitle
+                subTitle = component.find("p", class_="u-body-04 u-color-secondary u-mb-small")
+                # Date
+                date = component.find("span", class_="c-story__byline u-label-08 u-color-secondary u-mb-xsmall u-block")
+                dateAndGeneralCategory = " - ".join(line.strip() for line in date.text.splitlines() if line.strip())
+                # News Topic(s)
+                topics = component.find_all("li", class_="u-relative u-mr-xxsmall")
+                topicsPerNews = []
+                for topic in topics:
+                    topicsPerNews.append(topic.text)
+                topicsPerNews = [item.strip() for item in topicsPerNews]
+
+                # Temporary for tags (better to process them here)
+                topicsPerNewsForDB = ', '.join(topicsPerNews)
+
+                # Create the database
+                # Hedge from the missing category
+                titleSeries = pd.Series(title + ' - ' + subTitle.text)
+                if len(dateAndGeneralCategory.split(' - ')) > 1:
+                    categorySeries = pd.Series(dateAndGeneralCategory.split(' - ')[1])
+                else:
+                    categorySeries = pd.Series([])
+
+                newsGeneralDatabase = pd.concat(
+                    [titleSeries, categorySeries,
+                     pd.Series(dateAndGeneralCategory.split(' - ')[0]), pd.Series(topicsPerNewsForDB)],
+                    axis=1).set_axis(['Article', 'Date',
+                                      'Category', 'Topics'], axis=1)
+                allNewsData.append(newsGeneralDatabase)
+
+            try:
+                allNewsData = pd.concat([df for df in allNewsData], axis=0).reset_index(drop=True)
+                addressColumn = pd.DataFrame(np.full(len(allNewsData['Article']), address)).set_axis(['Address'],
+                                                                                                     axis=1)
+                allNewsData = pd.concat([addressColumn, allNewsData], axis=1)
+                newsPerStreet.append(allNewsData)
+            except:
+                print('No News found for address: ' + address)
+
+        newsPerStreet = pd.concat([df1 for df1 in newsPerStreet], axis=0).reset_index(drop=True)
+        newsPerStreet = newsPerStreet.drop_duplicates().reset_index(drop=True)
+
+        # SQL DataBase Saver
+        # if the table is present, append, otherwhise, create
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(newsPerStreet, db_name)
+        else:
+            database.createTable(newsPerStreet, db_name)
+
+        # Logging
+        print('News in Database: ', len(newsPerStreet['Address']))
+        print('Streets in Database: ', len(newsPerStreet['Address'].unique()))
+
+        return newsPerStreet
 
 
 
