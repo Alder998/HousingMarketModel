@@ -52,7 +52,7 @@ class Database:
             raise Exception('ERROR: The columns from the new table do not match the Table columns in the existing Table!')
 
         # if everything is ok, we can proceed
-        finalData = pd.concat([existingData, dataToAppend], axis = 0).drop_duplicates(keep='first').reset_index(drop=True)
+        finalData = pd.concat([existingData, dataToAppend], axis = 0).drop_duplicates().reset_index(drop=True)
         self.createTable(finalData, tableName, check_rows=False) # Creation without checking that the Table is existing
 
         return finalData

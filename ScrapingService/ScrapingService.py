@@ -326,10 +326,12 @@ class ScrapingService:
         # if the table is present, Exclude already processed streets, override
         if allTables['table_name'].str.contains(db_name).any():
             existingData = database.getDataFromLocalDatabase(db_name)
-            data = data[~data['Adress'].isin(existingData['Address'])].reset_index(drop=True)
+            # Exclude the links that have been discarded previously because not availble
+            notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx")
+            data = data[(~data['Adress'].isin(existingData['Address'])) & (~data['Adress'].isin(notAvailableLinks['Address']))].reset_index(drop=True)
             print('Addresses Already in DB:', len(existingData['Address'].unique()))
             print('Number of Processable Addresses:', len(data['Adress'].unique()))
-            addressAvailable = len(existingData['Address'].unique()) - len(data['Adress'].unique())
+            addressAvailable = np.abs(len(data['Adress'].unique()) - len(existingData['Address'].unique()))
         else:
             addressAvailable = len(data['Adress'].unique())
 
@@ -339,6 +341,7 @@ class ScrapingService:
 
         # Isolate the addresses
         newsPerStreet = []
+        noNewsList = []
         for i, address in enumerate(data['Adress'][0:min(subsample, addressAvailable)].unique()):
             #print(address)
             area = data['Area'][data['Adress'] == address].reset_index(drop=True)[0]
@@ -401,6 +404,13 @@ class ScrapingService:
                 newsPerStreet.append(allNewsData)
             except:
                 print('No News found for address: ' + address)
+                noNewsList.append(address)
+
+        # Store in a file the non existing links
+        notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx")
+        notAvailableLinks = pd.concat([notAvailableLinks,
+                pd.DataFrame(noNewsList).set_axis(['Address'], axis = 1)], axis = 0).drop_duplicates().reset_index(drop = True)
+        notAvailableLinks.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx", index = False)
 
         newsPerStreet = pd.concat([df1 for df1 in newsPerStreet], axis=0).reset_index(drop=True)
         newsPerStreet = newsPerStreet.drop_duplicates().reset_index(drop=True)
@@ -413,8 +423,9 @@ class ScrapingService:
             database.createTable(newsPerStreet, db_name)
 
         # Logging
-        print('News in Database: ', len(newsPerStreet['Address']))
-        print('Streets in Database: ', len(newsPerStreet['Address'].unique()))
+        updatedData = database.getDataFromLocalDatabase('newsDatabase_'+self.city)
+        print('News in Database: ', len(updatedData['Address']))
+        print('Streets in Database: ', len(updatedData['Address'].unique()))
 
         return newsPerStreet
 
