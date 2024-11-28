@@ -330,8 +330,8 @@ class ScrapingService:
             notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx")
             data = data[(~data['Adress'].isin(existingData['Address'])) & (~data['Adress'].isin(notAvailableLinks['Address']))].reset_index(drop=True)
             print('Addresses Already in DB:', len(existingData['Address'].unique()))
-            print('Number of Processable Addresses:', len(data['Adress'].unique()))
             addressAvailable = np.abs(len(data['Adress'].unique()) - len(existingData['Address'].unique()))
+            print('Number of Processable Addresses:', addressAvailable)
         else:
             addressAvailable = len(data['Adress'].unique())
 

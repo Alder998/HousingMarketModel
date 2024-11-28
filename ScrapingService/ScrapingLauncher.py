@@ -6,7 +6,7 @@ import ScrapingService as s
 #updated = s.ScrapingService('Milano').launchScraping(10, 10, filterString = "")
 
 # News Scraper
-news = s.ScrapingService('Milano').launchNewsScraper(subsample=500)
+news = s.ScrapingService('Milano').launchNewsScraper(subsample=1000)
 
 print('Analysis Terminated Successfully!')
 print('\n')
