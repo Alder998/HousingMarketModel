@@ -38,6 +38,20 @@ class areaDangerProcessing:
             data.loc[data['Topics'].str.contains(word), 'Crime'] = 1
         data['Crime'] = data['Crime'].fillna(0)
 
-        print('Number of crime tags:', len(data['Topics'][data['Crime'] == 1]))
+        # Encode the street name with the street Encoder from SQL
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        encodingData = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
+        encodedAdressData = pd.merge(left=data, right=encodingData, left_on='Address', right_on='Adress', how='inner')
 
-        return data
+        # Create the final database
+        encodedAdressData = encodedAdressData[['ID', 'Article', 'Crime']].drop_duplicates().reset_index(drop=True)
+
+        print('Number of crime tags:', len(encodedAdressData['ID'][encodedAdressData['Crime'] == 1]))
+
+        return encodedAdressData

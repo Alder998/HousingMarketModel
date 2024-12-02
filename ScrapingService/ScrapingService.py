@@ -8,6 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import random
+from geopy.geocoders import Nominatim
 
 class ScrapingService:
     def __init__(self, city):
@@ -428,6 +429,66 @@ class ScrapingService:
         print('Streets in Database: ', len(updatedData['Address'].unique()))
 
         return newsPerStreet
+
+    def createOrUpdateGeoDataset (self, subsample=50):
+
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        data = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
+        # database name and all tables, in order to exclude already processed data
+        db_name = 'geoData_'+self.city
+        allTables = database.getAllTablesInDatabase()
+
+        data['AddressTotal'] = data['City'] + ', ' + data['Adress']
+        # if the table is present, Exclude already processed streets, override
+        if allTables['table_name'].str.contains(db_name).any():
+            existingData = database.getDataFromLocalDatabase(db_name)
+            # Exclude the links that have been discarded previously because not availble
+            notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_geo_data.xlsx")
+            data = data[(~data['ID'].isin(existingData['ID'])) & (~data['ID'].isin(notAvailableLinks['ID']))].reset_index(drop=True)
+            print('Addresses Already in DB:', len(existingData['ID'].unique()))
+            addressAvailable = np.abs(len(data['ID'].unique()) - len(existingData['ID'].unique()))
+            print('Number of Processable Addresses:', addressAvailable)
+        else:
+            addressAvailable = len(data['ID'].unique())
+
+        dataCoord = []
+        for ad in range(len(data['AddressTotal'][0: min(subsample, addressAvailable)])):
+            print('Adress: ' + data['AddressTotal'][ad] + ' - Getting latitude and longitude... ' +
+                  str(round((ad / len(data['AddressTotal'][0: min(subsample, addressAvailable)])) * 100, 2)) + '%')
+            # Get the geographic data
+            geolocator = Nominatim(user_agent="housingMarketModel")
+            location = geolocator.geocode(data['AddressTotal'][ad])
+            #
+            latitude = []
+            longitude = []
+            if location:
+                latitude.append(location.latitude)
+                longitude.append(location.longitude)
+            else:
+                print('Location ' + data['AddressTotal'][ad] + ' not Found!')
+
+            dataCoordSingle = pd.concat([pd.Series(data['ID'][ad]), pd.Series(latitude), pd.Series(longitude)],
+                                        axis=1).set_axis(['ID',
+                                                          'Latitude', 'Longitude'], axis=1)
+            dataCoord.append(dataCoordSingle)
+        dataCoord = pd.concat([df for df in dataCoord], axis=0).reset_index(drop=True)
+
+        # SQL DataBase Saver
+        # if the table is present, append, otherwhise, create
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(dataCoord, db_name)
+        else:
+            database.createTable(dataCoord, db_name)
+
+        return dataCoord
+
+
 
 
 
