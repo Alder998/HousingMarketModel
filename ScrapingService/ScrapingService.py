@@ -440,6 +440,7 @@ class ScrapingService:
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
         data = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
+        data = data.dropna(subset = ['Adress'])
         # database name and all tables, in order to exclude already processed data
         db_name = 'geoData_'+self.city
         allTables = database.getAllTablesInDatabase()
@@ -459,12 +460,11 @@ class ScrapingService:
 
         dataCoord = []
         for ad in range(len(data['AddressTotal'][0: min(subsample, addressAvailable)])):
-            print('Adress: ' + data['AddressTotal'][ad] + ' - Getting latitude and longitude... ' +
+            print('Adress: ' + str(data['AddressTotal'][ad]) + ' - Getting latitude and longitude... ' +
                   str(round((ad / len(data['AddressTotal'][0: min(subsample, addressAvailable)])) * 100, 2)) + '%')
             # Get the geographic data
             geolocator = Nominatim(user_agent="housingMarketModel")
             location = geolocator.geocode(data['AddressTotal'][ad])
-            #
             latitude = []
             longitude = []
             if location:
