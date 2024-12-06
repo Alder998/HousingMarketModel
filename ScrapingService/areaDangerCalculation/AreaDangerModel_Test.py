@@ -2,6 +2,6 @@
 
 import areaDangerDataProcessing as dp
 
-crimeDataForModel = dp.areaDangerProcessing('Milano').createBinaryCrimeDataset()
+crimeDataForModel = dp.areaDangerProcessing('Milano').processDatasetForModel()
 
-print(crimeDataForModel)
+#print(crimeDataForModel)

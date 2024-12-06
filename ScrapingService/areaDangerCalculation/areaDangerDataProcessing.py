@@ -7,6 +7,8 @@ from datetime import datetime
 from Utils import Database as d
 import os
 from dotenv import load_dotenv
+from sklearn.model_selection import train_test_split
+import areaDangerModel as dm
 
 class areaDangerProcessing:
     def __init__(self, city):
@@ -46,12 +48,45 @@ class areaDangerProcessing:
         database_db = os.getenv('DATABASE_DB')
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
-        encodingData = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
-        encodedAdressData = pd.merge(left=data, right=encodingData, left_on='Address', right_on='Adress', how='inner')
+        encodingData = database.getDataFromLocalDatabase("geoData_" + self.city)
+        encodedAdressData = pd.merge(left=data, right=encodingData, left_on='Address', right_on='Address', how='inner').drop_duplicates(subset=['Article', 'Address']).reset_index(drop=True)
 
         # Create the final database
-        encodedAdressData = encodedAdressData[['ID', 'Article', 'Crime']].drop_duplicates().reset_index(drop=True)
+        encodedAdressData = encodedAdressData[['Latitude', 'Longitude', 'Article', 'Crime']].drop_duplicates().reset_index(drop=True)
 
-        print('Number of crime tags:', len(encodedAdressData['ID'][encodedAdressData['Crime'] == 1]))
+        print('Number of News after merge with coordinates:', len(encodedAdressData['Latitude']))
+        print('Number of crime tags:', len(encodedAdressData['Latitude'][encodedAdressData['Crime'] == 1]))
 
         return encodedAdressData
+
+    def trainTestSplit (self, data):
+
+        # data is the encoded data from the function createBinaryCrimeDataset
+
+        predictor = np.array(data['Crime']).reshape(len(data['Crime']), 1)
+        features = np.array(data[['Latitude','Longitude']]).reshape(len(data['Crime']), 2)
+        x_train, x_test, y_train, y_test = train_test_split(
+            features, predictor, test_size=0.20, random_state=1893, stratify=predictor)
+
+        # Analytics for train and test set
+        dataForStats_train = pd.concat([pd.DataFrame(y_train).set_axis(['Pred'], axis = 1), pd.DataFrame(x_train)], axis = 1)
+        dataForStats_test = pd.concat([pd.DataFrame(y_test).set_axis(['Pred'], axis = 1), pd.DataFrame(x_test)], axis = 1)
+        percPred_train = len(dataForStats_train[0][dataForStats_train['Pred'] == 1]) / len(dataForStats_train[0])
+        percPred_test = len(dataForStats_test[0][dataForStats_test['Pred'] == 1]) / len(dataForStats_test[0])
+        print('Percentage of Predictor in Train set:', round(percPred_train*100, 2), '%')
+        print('Percentage of Predictor in Test set:', round(percPred_test*100, 2), '%')
+
+        return x_train, x_test, y_train, y_test
+
+    def processDatasetForModel (self):
+
+        step1 = self.createBinaryCrimeDataset()
+        step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset()
+        #step2 = self.trainTestSplit(step1)
+
+        return step1_1
+
+
+
+
+

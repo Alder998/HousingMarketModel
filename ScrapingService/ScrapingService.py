@@ -473,8 +473,8 @@ class ScrapingService:
             else:
                 print('Location ' + data['AddressTotal'][ad] + ' not Found!')
 
-            dataCoordSingle = pd.concat([pd.Series(data['ID'][ad]), pd.Series(latitude), pd.Series(longitude)],
-                                        axis=1).set_axis(['ID',
+            dataCoordSingle = pd.concat([pd.Series(data['ID'][ad]), pd.Series(data['Adress'][ad]), pd.Series(latitude), pd.Series(longitude)],
+                                        axis=1).set_axis(['ID', 'Address',
                                                           'Latitude', 'Longitude'], axis=1)
             dataCoord.append(dataCoordSingle)
         dataCoord = pd.concat([df for df in dataCoord], axis=0).reset_index(drop=True)
