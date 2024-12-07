@@ -2,6 +2,6 @@
 
 import areaDangerDataProcessing as dp
 
-crimeDataForModel = dp.areaDangerProcessing('Milano').processDatasetForModel()
+crimeDataForModel = dp.areaDangerProcessing('Milano').processDatasetForModel(returnType='CLS')
 
 #print(crimeDataForModel)

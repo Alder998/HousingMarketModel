@@ -9,6 +9,8 @@ import os
 from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
 import areaDangerModel as dm
+import os
+import torch
 
 class areaDangerProcessing:
     def __init__(self, city):
@@ -61,30 +63,33 @@ class areaDangerProcessing:
 
     def trainTestSplit (self, data):
 
-        # data is the encoded data from the function createBinaryCrimeDataset
+        # The data we receive here is a dictionary of tensors and output
 
-        predictor = np.array(data['Crime']).reshape(len(data['Crime']), 1)
-        features = np.array(data[['Latitude','Longitude']]).reshape(len(data['Crime']), 2)
-        x_train, x_test, y_train, y_test = train_test_split(
-            features, predictor, test_size=0.20, random_state=1893, stratify=predictor)
+        X_train, X_test, y_train, y_test = train_test_split(
+            data['Embedding'], data['Output'], test_size=0.20, random_state=42, stratify=data['Output'])
 
-        # Analytics for train and test set
-        dataForStats_train = pd.concat([pd.DataFrame(y_train).set_axis(['Pred'], axis = 1), pd.DataFrame(x_train)], axis = 1)
-        dataForStats_test = pd.concat([pd.DataFrame(y_test).set_axis(['Pred'], axis = 1), pd.DataFrame(x_test)], axis = 1)
-        percPred_train = len(dataForStats_train[0][dataForStats_train['Pred'] == 1]) / len(dataForStats_train[0])
-        percPred_test = len(dataForStats_test[0][dataForStats_test['Pred'] == 1]) / len(dataForStats_test[0])
-        print('Percentage of Predictor in Train set:', round(percPred_train*100, 2), '%')
-        print('Percentage of Predictor in Test set:', round(percPred_test*100, 2), '%')
+        # Verify train and test set distribution
+        print("Distribution of 'Output' in the training set:")
+        print(len(y_train))
+        print("Distribution of 'Output' in the test set:")
+        print(len(y_test))
 
-        return x_train, x_test, y_train, y_test
+        return X_train, X_test, y_train, y_test
 
-    def processDatasetForModel (self):
+
+    def processDatasetForModel (self, returnType='CLS'):
 
         step1 = self.createBinaryCrimeDataset()
-        step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset()
-        #step2 = self.trainTestSplit(step1)
+        path = "embeddings_sentences_" + returnType.lower() + ".pt"
+        if os.path.exists(path):
+            print('Loading data...')
+            loaded_data = torch.load(path)
+            step2 = self.trainTestSplit(loaded_data)
+        else:
+            step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(step1, returnType)
+            step2 = self.trainTestSplit(step1_1)
 
-        return step1_1
+        return step2
 
 
 

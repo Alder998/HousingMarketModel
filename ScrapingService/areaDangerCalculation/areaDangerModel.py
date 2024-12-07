@@ -17,36 +17,50 @@ class areaDangerModel:
         self.city = city
         pass
 
-    def encodeTextVariablesInDataset (self):
+    def encodeTextVariablesInDataset (self, dataset, returnType='CLS'):
 
-        dataset = dp.areaDangerProcessing(self.city).createBinaryCrimeDataset()
-
-        # Step 1: Import a pre-trained BERT model and tokenizer
+        # Load the Model, that in our case is a BERT-uncased
         model_name = "bert-base-uncased"  # Pre-trained BERT model
         tokenizer = BertTokenizer.from_pretrained(model_name)
         model = BertModel.from_pretrained(model_name)
 
-        # Step 2: Define an array of sentences
-        sentences = list(dataset['Article'][0:500])
+        # Define the base of the sequence Array
+        sentences = list(dataset['Article'])
+        outputs = list(dataset['Crime'])
 
-        # Step 3: Tokenize the sentences and convert them to input tensors
-        tokenized_inputs = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
+        sentencesWithOutput = {"Embedding": [], 'Output': []}
+        for singleSentence, output in zip(sentences, outputs):
 
-        # Genera gli embedding con il modello BERT
-        with torch.no_grad():
-            outputs = model(**tokenized_inputs)
+            # Logging
+            print('Applying LLM sentence processing...', round((dataset.index[dataset['Article'] == singleSentence][0]
+                                                                /len(list(dataset['Article']))) * 100, 2), '%')
 
-        # CLS Token for every sentence
-        cls_embeddings = outputs.last_hidden_state[:, 0, :]  # Vettori [CLS]
+            # Step 3: Tokenize the sentences and convert them to input tensors
+            tokenized_inputs = tokenizer(singleSentence, padding=True, truncation=True, return_tensors="pt")
 
-        # Alternative - Use the mean of the tokens as token itself
-        mean_embeddings = outputs.last_hidden_state.mean(dim=1)
+            # Generate the Embedding for BERT
+            with torch.no_grad():
+                embeddedSentence = model(**tokenized_inputs)
 
-        # Stampare o salvare le features per usarle in una rete neurale
-        print(cls_embeddings)
-        print(mean_embeddings)
+            sentenceEmbedding = np.full([1, 768], 0)
+            if returnType == 'CLS':
+                sentenceEmbedding = embeddedSentence.last_hidden_state[:, 0, :]
+            if returnType == 'mean':
+                # Alternative - Use the mean of the tokens as token itself
+                sentenceEmbedding = embeddedSentence.last_hidden_state.mean(dim=1)
+            sentencesWithOutput['Embedding'].append(sentenceEmbedding)
+            sentencesWithOutput['Output'].append(outputs)
 
-        return tokenized_inputs
+        # Save the dictionary
+        torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
+
+        # Verify some results
+        print(f"Number of Elements 'Embedding': {len(sentencesWithOutput['Embedding'])}")
+        print(f"Number of Elements in 'Output': {len(sentencesWithOutput['Output'])}")
+        print(f"Shape of the First Embedding: {sentencesWithOutput['Embedding'][0].shape}")  # should be torch.Size([768])
+
+        return sentencesWithOutput
+
 
 
 
