@@ -69,13 +69,13 @@ class areaDangerProcessing:
             data['Embedding'], data['Output'], test_size=0.20, random_state=42, stratify=data['Output'])
 
         # Verify train and test set distribution
-        print("Distribution of 'Output' in the training set:")
-        print(len(y_train))
-        print("Distribution of 'Output' in the test set:")
-        print(len(y_test))
+        dataOutput_train = pd.Series(y_train)
+        dataOutput_test = pd.Series(y_test)
+        # Log with the percentage Distribution
+        print('Distribution of Outputs in train set: ', round((len(dataOutput_train[dataOutput_train == 1]) / len(dataOutput_train)) * 100, 3), '%')
+        print('Distribution of Outputs in test set: ', round((len(dataOutput_test[dataOutput_test == 1]) / len(dataOutput_test)) * 100, 3), '%')
 
         return X_train, X_test, y_train, y_test
-
 
     def processDatasetForModel (self, returnType='CLS'):
 

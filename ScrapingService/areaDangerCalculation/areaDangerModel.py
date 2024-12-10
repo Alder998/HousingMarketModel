@@ -29,11 +29,10 @@ class areaDangerModel:
         outputs = list(dataset['Crime'])
 
         sentencesWithOutput = {"Embedding": [], 'Output': []}
-        for singleSentence, output in zip(sentences, outputs):
+        for i, (singleSentence, output) in enumerate(zip(sentences, outputs)):
 
             # Logging
-            print('Applying LLM sentence processing...', round((dataset.index[dataset['Article'] == singleSentence][0]
-                                                                /len(list(dataset['Article']))) * 100, 2), '%')
+            print('Applying LLM sentence processing...', round(i/len(list(dataset['Article'])) * 100, 2), '%')
 
             # Step 3: Tokenize the sentences and convert them to input tensors
             tokenized_inputs = tokenizer(singleSentence, padding=True, truncation=True, return_tensors="pt")
@@ -49,7 +48,7 @@ class areaDangerModel:
                 # Alternative - Use the mean of the tokens as token itself
                 sentenceEmbedding = embeddedSentence.last_hidden_state.mean(dim=1)
             sentencesWithOutput['Embedding'].append(sentenceEmbedding)
-            sentencesWithOutput['Output'].append(outputs)
+            sentencesWithOutput['Output'].append(outputs[i])
 
         # Save the dictionary
         torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
