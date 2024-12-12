@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 import areaDangerDataProcessing as dp
 from transformers import BertTokenizer, BertModel
 import torch
+import tensorflow as tf
 
 class areaDangerModel:
     def __init__(self, city):
@@ -59,6 +60,55 @@ class areaDangerModel:
         print(f"Shape of the First Embedding: {sentencesWithOutput['Embedding'][0].shape}")  # should be torch.Size([768])
 
         return sentencesWithOutput
+
+    # NN Model Itself, very simple one
+
+    def NNModel (self, data):
+
+        # returns: x_train, x_test, y_train, y_test
+        x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
+        x_test = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[1]])
+        y_train = np.array(data[2])
+        y_test = np.array(data[3])
+
+        # Convert Numbers
+        x_train = x_train.astype(np.float32)
+
+        print("Shape of X_train:", x_train.shape)
+
+        # Define the Model
+        model = tf.keras.Sequential([
+            #tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(200, activation='relu'),
+            tf.keras.layers.Dense(200, activation='relu'),
+            tf.keras.layers.Dense(200, activation='relu'),
+            tf.keras.layers.Dense(200, activation='relu'),
+            tf.keras.layers.Dense(10)
+        ])
+
+        # Compile
+        model.compile(optimizer='adam',
+                      loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                      metrics=['accuracy'])
+        # Now, Train the Model
+        model.fit(x_train, y_train, epochs=100)
+
+        # Evaluate on Test set
+        test_loss, test_acc = model.evaluate(x_test, y_test, verbose=2)
+        print('Test accuracy:', test_acc)
+        # Get The probabilities adding a SoftMax layer
+        probability_model = tf.keras.Sequential([model,tf.keras.layers.Softmax()])
+
+        return probability_model
+
+
+
+
+
+
+
+
+
 
 
 

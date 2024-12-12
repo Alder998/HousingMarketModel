@@ -250,7 +250,10 @@ class ScrapingService:
         aggregatedData['Rooms'] = aggregatedData['Rooms'].str.replace(' locale', '').str.replace(' locali',
                                                                                                  '').str.replace('+',
                                                                                                                  '')
-        aggregatedData['Rooms'] = aggregatedData['Rooms'].astype(int)
+        try:
+            aggregatedData['Rooms'] = aggregatedData['Rooms'].astype(int)
+        except Exception as e:
+            print('No Valid Format!')
 
         # Floor
         aggregatedData = aggregatedData[
