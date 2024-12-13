@@ -63,7 +63,7 @@ class areaDangerModel:
 
     # NN Model Itself, very simple one
 
-    def NNModel (self, data):
+    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure=[500, 500, 500]):
 
         # returns: x_train, x_test, y_train, y_test
         x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
@@ -76,28 +76,29 @@ class areaDangerModel:
 
         print("Shape of X_train:", x_train.shape)
 
-        # Define the Model
-        model = tf.keras.Sequential([
-            #tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(200, activation='relu'),
-            tf.keras.layers.Dense(200, activation='relu'),
-            tf.keras.layers.Dense(200, activation='relu'),
-            tf.keras.layers.Dense(200, activation='relu'),
-            tf.keras.layers.Dense(10)
-        ])
+        # Define the Model with custom Structure
+        model = tf.keras.Sequential()
+        for l in range(len(structure)):
+            layer = tf.keras.layers.Dense(structure[l], activation='relu')
+            model.add(layer)
+        model.add(tf.keras.layers.Dense(10))
 
         # Compile
         model.compile(optimizer='adam',
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                       metrics=['accuracy'])
         # Now, Train the Model
-        model.fit(x_train, y_train, epochs=100)
+        model.fit(x_train, y_train, epochs=trainingEpochs)
 
         # Evaluate on Test set
         test_loss, test_acc = model.evaluate(x_test, y_test, verbose=2)
         print('Test accuracy:', test_acc)
         # Get The probabilities adding a SoftMax layer
         probability_model = tf.keras.Sequential([model,tf.keras.layers.Softmax()])
+
+        # Save in H5 Format
+        model.save('CrimeModel.h5')
+        print('Model saved Correctly')
 
         return probability_model
 

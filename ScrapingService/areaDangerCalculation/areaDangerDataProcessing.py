@@ -61,12 +61,12 @@ class areaDangerProcessing:
 
         return encodedAdressData
 
-    def trainTestSplit (self, data):
+    def trainTestSplit (self, data, test_size=0.20):
 
         # The data we receive here is a dictionary of tensors and output
 
         X_train, X_test, y_train, y_test = train_test_split(
-            data['Embedding'], data['Output'], test_size=0.20, random_state=42, stratify=data['Output'])
+            data['Embedding'], data['Output'], test_size=test_size, random_state=42, stratify=data['Output'])
 
         # Verify train and test set distribution
         dataOutput_train = pd.Series(y_train)
@@ -77,17 +77,17 @@ class areaDangerProcessing:
 
         return X_train, X_test, y_train, y_test
 
-    def processDatasetForModel (self, returnType='CLS'):
+    def processDatasetForModel (self, returnType='CLS', test_size=0.20):
 
         step1 = self.createBinaryCrimeDataset()
         path = "embeddings_sentences_" + returnType.lower() + ".pt"
         if os.path.exists(path):
             print('Loading data...')
             loaded_data = torch.load(path)
-            step2 = self.trainTestSplit(loaded_data)
+            step2 = self.trainTestSplit(loaded_data, test_size)
         else:
             step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(step1, returnType)
-            step2 = self.trainTestSplit(step1_1)
+            step2 = self.trainTestSplit(step1_1, test_size)
 
         return step2
 
