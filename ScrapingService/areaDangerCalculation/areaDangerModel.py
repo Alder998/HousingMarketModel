@@ -63,7 +63,7 @@ class areaDangerModel:
 
     # NN Model Itself, very simple one
 
-    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure=[500, 500, 500]):
+    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure=[500, 500, 500], returnType = 'cls'):
 
         # returns: x_train, x_test, y_train, y_test
         x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
@@ -97,10 +97,17 @@ class areaDangerModel:
         probability_model = tf.keras.Sequential([model,tf.keras.layers.Softmax()])
 
         # Save in H5 Format
-        model.save('CrimeModel.h5')
+        model.save('CrimeModel_' + returnType + '.h5')
         print('Model saved Correctly')
 
         return probability_model
+
+    def predictAndSaveAreaDangerLevel (self):
+        # Instantiate the database
+
+        return 0
+
+
 
 
 

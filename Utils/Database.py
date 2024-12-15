@@ -19,7 +19,7 @@ class Database:
         data = pd.read_sql(query, engine)
         return data
 
-    def createTable (self, data, newTableName, check_rows=True):
+    def createTable (self, data, newTableName, check_rows=True, if_exist='append'):
 
         if check_rows:
             # Check if the table already exists
@@ -36,7 +36,7 @@ class Database:
             port=self.port
         )
         engine = create_engine('postgresql://' + self.user + ':' + self.password + '@localhost:' + self.port + '/' + self.db)
-        file.to_sql(newTableName, engine, if_exists='append', index=False)
+        file.to_sql(newTableName, engine, if_exists=if_exist, index=False)
         connection.close()
 
     def appendDataToExistingTable (self, dataToAppend, tableName):
@@ -53,7 +53,7 @@ class Database:
 
         # if everything is ok, we can proceed
         finalData = pd.concat([existingData, dataToAppend], axis = 0).drop_duplicates().reset_index(drop=True)
-        self.createTable(finalData, tableName, check_rows=False) # Creation without checking that the Table is existing
+        self.createTable(finalData, tableName, check_rows=False, if_exist='replace') # Creation without checking that the Table is existing
 
         return finalData
 

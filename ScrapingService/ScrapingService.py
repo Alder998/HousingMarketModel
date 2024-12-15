@@ -309,7 +309,7 @@ class ScrapingService:
         for singleFilter in filterList:
             iterationRoom = self.launchScraping(pages, iterations, singleFilter)
 
-    def launchNewsScraper (self, subsample = 100):
+    def launchNewsScraper (self, subsample = 100, exclude_already_processed=True):
 
         # Get the data
         city = self.city
@@ -328,14 +328,17 @@ class ScrapingService:
         db_name = 'newsDatabase_'+self.city
         allTables = database.getAllTablesInDatabase()
         # if the table is present, Exclude already processed streets, override
-        if allTables['table_name'].str.contains(db_name).any():
-            existingData = database.getDataFromLocalDatabase(db_name)
-            # Exclude the links that have been discarded previously because not availble
-            notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx")
-            data = data[(~data['Adress'].isin(existingData['Address'])) & (~data['Adress'].isin(notAvailableLinks['Address']))].reset_index(drop=True)
-            print('Addresses Already in DB:', len(existingData['Address'].unique()))
-            addressAvailable = np.abs(len(data['Adress'].unique()) - len(existingData['Address'].unique()))
-            print('Number of Processable Addresses:', addressAvailable)
+        if exclude_already_processed:
+            if allTables['table_name'].str.contains(db_name).any():
+                existingData = database.getDataFromLocalDatabase(db_name)
+                # Exclude the links that have been discarded previously because not availble
+                notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\no_news_streets.xlsx")
+                data = data[(~data['Adress'].isin(existingData['Address'])) & (~data['Adress'].isin(notAvailableLinks['Address']))].reset_index(drop=True)
+                print('Addresses Already in DB:', len(existingData['Address'].unique()))
+                addressAvailable = np.abs(len(data['Adress'].unique()) - len(existingData['Address'].unique()))
+                print('Number of Processable Addresses:', addressAvailable)
+            else:
+                addressAvailable = len(data['Adress'].unique())
         else:
             addressAvailable = len(data['Adress'].unique())
 
@@ -347,10 +350,7 @@ class ScrapingService:
         newsPerStreet = []
         noNewsList = []
         for i, address in enumerate(data['Adress'][0:min(subsample, addressAvailable)].unique()):
-            #print(address)
             area = data['Area'][data['Adress'] == address].reset_index(drop=True)[0]
-            print(
-                'Processing...' + address + ' (' + area + ') - ' + str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%')
             address = address.replace(',', '')
             # Now, scrape news about the street/Area
             # get the address in a fungible format
@@ -362,7 +362,14 @@ class ScrapingService:
 
             # Get the entire news element, for each News
             entireArticle = soupJ.find_all("article", class_="c-story c-story--search u-py-medium nw_result_articolo")
-            # Iterate for each Component
+
+            # Log for street and news found
+            print(
+                'Processing...' + address + ' (' + area + ') - ' +
+                str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%' + ' - ' +
+                str(len(entireArticle)) + ' News Found')
+
+            # Iterate for each Component in article
             allNewsData = []
             for component in entireArticle:
 
