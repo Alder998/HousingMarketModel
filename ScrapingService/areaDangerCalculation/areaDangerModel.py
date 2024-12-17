@@ -18,10 +18,10 @@ class areaDangerModel:
         self.city = city
         pass
 
-    def encodeTextVariablesInDataset (self, dataset, returnType='CLS'):
+    def encodeTextVariablesInDataset (self, dataset, model="bert-base-uncased", returnType='cls', predict=False):
 
         # Load the Model, that in our case is a BERT-uncased
-        model_name = "bert-base-uncased"  # Pre-trained BERT model
+        model_name = model  # Pre-trained BERT model
         tokenizer = BertTokenizer.from_pretrained(model_name)
         model = BertModel.from_pretrained(model_name)
 
@@ -43,7 +43,7 @@ class areaDangerModel:
                 embeddedSentence = model(**tokenized_inputs)
 
             sentenceEmbedding = np.full([1, 768], 0)
-            if returnType == 'CLS':
+            if returnType == 'cls':
                 sentenceEmbedding = embeddedSentence.last_hidden_state[:, 0, :]
             if returnType == 'mean':
                 # Alternative - Use the mean of the tokens as token itself
@@ -52,7 +52,8 @@ class areaDangerModel:
             sentencesWithOutput['Output'].append(outputs[i])
 
         # Save the dictionary
-        torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
+        if predict == False:
+            torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
 
         # Verify some results
         print(f"Number of Elements 'Embedding': {len(sentencesWithOutput['Embedding'])}")
@@ -81,7 +82,7 @@ class areaDangerModel:
         for l in range(len(structure)):
             layer = tf.keras.layers.Dense(structure[l], activation='relu')
             model.add(layer)
-        model.add(tf.keras.layers.Dense(10))
+        model.add(tf.keras.layers.Dense(2))
 
         # Compile
         model.compile(optimizer='adam',
@@ -97,15 +98,10 @@ class areaDangerModel:
         probability_model = tf.keras.Sequential([model,tf.keras.layers.Softmax()])
 
         # Save in H5 Format
-        model.save('CrimeModel_' + returnType + '.h5')
+        probability_model.save('CrimeModel_' + returnType + '.h5')
         print('Model saved Correctly')
 
         return probability_model
-
-    def predictAndSaveAreaDangerLevel (self):
-        # Instantiate the database
-
-        return 0
 
 
 

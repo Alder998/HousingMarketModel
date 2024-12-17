@@ -11,30 +11,59 @@ from sklearn.model_selection import train_test_split
 import areaDangerModel as dm
 import os
 import torch
+import tensorflow as tf
 
 class areaDangerProcessing:
     def __init__(self, city):
         self.city = city
         pass
 
-    def createBinaryCrimeDataset (self):
+    def createBinaryCrimeDataset (self, dataRaw, subsample=1, predict=False):
 
+        # Import and Instantiate the Database Object
         load_dotenv('App.env')
         database_user = os.getenv('DATABASE_USER')
         database_password = os.getenv('DATABASE_PASSWORD')
         database_port = os.getenv('DATABASE_PORT')
         database_db = os.getenv('DATABASE_DB')
-
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
-        data = database.getDataFromLocalDatabase("newsDatabase_" + self.city)
+
+        # Apply subsample database + save the validation set (the one on which we are making the predictions)
+        # Each one of the street must be count in the validation Dataset
+
+        if predict == False:
+            data = []
+            for ad in dataRaw['Address'].unique():
+                dataS = dataRaw[dataRaw['Address'] == ad].reset_index(drop=True)
+                dataTrimmed = dataS[0 : int(round(len(dataS['Address'])*subsample, 0))]
+                data.append(dataTrimmed)
+            data = pd.concat([df for df in data], axis = 0).reset_index(drop=True)
+
+            # Take care of the validation Dataset, using the news as discriminator
+            dataForValidation = dataRaw[~dataRaw['Article'].isin(data['Article'])]
+            # Save or update the validation set
+            db_name = 'crimeValidationSet_'+self.city
+            allTables = database.getAllTablesInDatabase()
+            if allTables['table_name'].str.contains(db_name).any():
+                database.appendDataToExistingTable(dataForValidation, db_name)
+            else:
+                database.createTable(dataForValidation, db_name)
+        else:
+            data = dataRaw
 
         # Drop Duplicates, remove articles without a topic
         data = data.drop_duplicates().reset_index(drop=True)
         data = data[(~data['Topics'].isna()) & (~data['Topics'].str.match(r'^\s*$', na=False))].reset_index(drop=True)
-        # Database Stats
+        # Database Stats - Model
         print('Streets in Database:', len(data['Address'].unique()))
         print('Articles in Database:', len(data['Article']))
+
+        if predict==False:
+            # Database Stats - Validation
+            print('Streets in Validation Database:', len(dataForValidation['Address'].unique()))
+            print('Articles in Validation Database:', len(dataForValidation['Article']))
+
         # Filter for crime tags
         words = ['arresti', 'furti', 'droga', 'morti', 'incendi', 'omicidi', 'spaccio', 'denunce', 'accoltella',
                  'violenze', 'risse', 'inseguimenti', 'indagini', 'violenze sessuali', 'truffe', 'processi', 'spara', 'rapina']
@@ -43,13 +72,6 @@ class areaDangerProcessing:
         data['Crime'] = data['Crime'].fillna(0)
 
         # Encode the street name with the street Encoder from SQL
-        load_dotenv('App.env')
-        database_user = os.getenv('DATABASE_USER')
-        database_password = os.getenv('DATABASE_PASSWORD')
-        database_port = os.getenv('DATABASE_PORT')
-        database_db = os.getenv('DATABASE_DB')
-        # Instantiate the DB
-        database = d.Database(database_user, database_password, database_port, database_db)
         encodingData = database.getDataFromLocalDatabase("geoData_" + self.city)
         encodedAdressData = pd.merge(left=data, right=encodingData, left_on='Address', right_on='Address', how='inner').drop_duplicates(subset=['Article', 'Address']).reset_index(drop=True)
 
@@ -77,19 +99,77 @@ class areaDangerProcessing:
 
         return X_train, X_test, y_train, y_test
 
-    def processDatasetForModel (self, returnType='CLS', test_size=0.20):
+    def processDatasetForModel (self, model="bert-base-uncased", returnType='cls', subsample=1, test_size=0.20):
 
-        step1 = self.createBinaryCrimeDataset()
+        # Get the data
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        dataRaw = database.getDataFromLocalDatabase("newsDatabase_" + self.city)
+
+        step1 = self.createBinaryCrimeDataset(dataRaw, subsample=subsample)
         path = "embeddings_sentences_" + returnType.lower() + ".pt"
         if os.path.exists(path):
             print('Loading data...')
             loaded_data = torch.load(path)
             step2 = self.trainTestSplit(loaded_data, test_size)
         else:
-            step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(step1, returnType)
+            step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(step1, model, returnType)
             step2 = self.trainTestSplit(step1_1, test_size)
 
         return step2
+
+    def predictDangerFromNews (self, model="bert-base-uncased", returnType='cls'):
+
+        # Import the validation dataset from SQL
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        dataForValidation = database.getDataFromLocalDatabase('crimeValidationSet_'+self.city)
+
+        # Encode the Validation Set
+        validationSetBinary = self.createBinaryCrimeDataset(dataForValidation, subsample=1, predict=True)
+
+        # Create the Embedding for the Set
+        validationSetEmbedding = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(validationSetBinary, model,
+                                                                                            returnType, predict=True)
+        # Adjust the Data to be processed and convert to numbers (if necessary)
+        validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
+        validationSetEmbedding = validationSetEmbedding.astype(np.float32)
+
+        # Get the Saved Model
+        storedModel = tf.keras.models.load_model('CrimeModel_'+ returnType.lower() +'.h5')
+
+        # Use it to predict probabilities
+        modelPrediction = storedModel.predict(validationSetEmbedding)
+        # Create the Crime Prediction Dataset
+        crimePredData = []
+        for i, prediction in enumerate(modelPrediction):
+            singleRow = pd.concat([pd.Series(dataForValidation['Address'][i]),
+                                   pd.Series(np.max(prediction))], axis = 1).set_axis(['Address', 'DangerIndex'], axis = 1)
+            crimePredData.append(singleRow)
+        crimePredData = pd.concat([df for df in crimePredData], axis = 0)
+
+        # Save on SQL
+        db_name = 'dangerPredictionSet_' + self.city
+        allTables = database.getAllTablesInDatabase()
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(crimePredData, db_name)
+        else:
+            database.createTable(crimePredData, db_name)
+
+        return crimePredData
+
 
 
 
