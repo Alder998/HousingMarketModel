@@ -309,7 +309,7 @@ class ScrapingService:
         for singleFilter in filterList:
             iterationRoom = self.launchScraping(pages, iterations, singleFilter)
 
-    def launchNewsScraper (self, subsample = 100, exclude_already_processed=True):
+    def launchNewsScraper (self, subsample = 100, exclude_already_processed=True, all_streets=False):
 
         # Get the data
         city = self.city
@@ -322,7 +322,10 @@ class ScrapingService:
         database_db = os.getenv('DATABASE_DB')
         database = d.Database(database_user, database_password, database_port, database_db)
         # Get all table in DB
-        data = database.getDataFromLocalDatabase("offerDetailDatabase_" + city + "")
+        if all_streets:
+            data = database.getDataFromLocalDatabase("AllStreets_" + city + "")
+        else:
+            data = database.getDataFromLocalDatabase("offerDetailDatabase_" + city + "")
         data = data.dropna(subset=['Adress'])
 
         db_name = 'newsDatabase_'+self.city
@@ -350,7 +353,6 @@ class ScrapingService:
         newsPerStreet = []
         noNewsList = []
         for i, address in enumerate(data['Adress'][0:min(subsample, addressAvailable)].unique()):
-            area = data['Area'][data['Adress'] == address].reset_index(drop=True)[0]
             address = address.replace(',', '')
             # Now, scrape news about the street/Area
             # get the address in a fungible format
@@ -364,10 +366,17 @@ class ScrapingService:
             entireArticle = soupJ.find_all("article", class_="c-story c-story--search u-py-medium nw_result_articolo")
 
             # Log for street and news found
-            print(
-                'Processing...' + address + ' (' + area + ') - ' +
-                str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%' + ' - ' +
-                str(len(entireArticle)) + ' News Found')
+            if all_streets:
+                print(
+                    'Processing...' + address + ' ' +
+                    str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%' + ' - ' +
+                    str(len(entireArticle)) + ' News Found')
+            else:
+                area = data['Area'][data['Adress'] == address].reset_index(drop=True)[0]
+                print(
+                    'Processing...' + address + ' (' + area + ') - ' +
+                    str(round((i / len(data['Adress'][0:min(subsample, addressAvailable)])) * 100, 2)) + '%' + ' - ' +
+                    str(len(entireArticle)) + ' News Found')
 
             # Iterate for each Component in article
             allNewsData = []
