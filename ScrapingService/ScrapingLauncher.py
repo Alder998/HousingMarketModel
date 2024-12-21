@@ -7,9 +7,10 @@ import ScrapingService as s
 #updated = s.ScrapingService('Milano').launchScraping(10, 10, filterString = "")
 
 # News Scraper
-news = s.ScrapingService('Milano').launchNewsScraper(subsample=10, exclude_already_processed=True, all_streets=True)
+news = s.ScrapingService('Milano').launchNewsScraper(subsample=1500, exclude_already_processed=True, all_streets=True)
 # Geographic Scraper
-#geo = s.ScrapingService('Milano').createOrUpdateGeoDataset(subsample=2000)
+geo = s.ScrapingService('Milano').createOrUpdateGeoDataset(base_dataset="newsDatabase_" + 'Milano',
+                                                           subsample=100)
 
 print('Analysis Terminated Successfully!')
 print('\n')
