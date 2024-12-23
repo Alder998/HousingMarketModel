@@ -453,7 +453,7 @@ class ScrapingService:
 
         return newsPerStreet
 
-    def createOrUpdateGeoDataset (self, base_dataset, subsample=50):
+    def createOrUpdateGeoDataset (self, base_dataset, subsample=50, exclude_already_processed=False):
 
         load_dotenv('App.env')
         database_user = os.getenv('DATABASE_USER')
@@ -471,7 +471,9 @@ class ScrapingService:
         if base_dataset != 'offerDetailDatabase_'+self.city:
             data['Adress'] = data['Address']
             data['ID'] = pd.DataFrame(np.full(len(data['Adress']), 'All_Streets'))
-            data = data.drop_duplicates(subset='Adress')
+            data = data.drop_duplicates(subset='Adress').reset_index(drop=True)
+            # COMMENT
+            # data = data[data['ID'] == 'All_Streets'].reset_index(drop=True)
 
         data = data.dropna(subset = ['Adress'])
         # database name and all tables, in order to exclude already processed data
@@ -479,17 +481,20 @@ class ScrapingService:
         allTables = database.getAllTablesInDatabase()
 
         data['AddressTotal'] = self.city + ', ' + data['Adress']
-        # if the table is present, Exclude already processed streets, override
-        if allTables['table_name'].str.contains(db_name).any():
-            existingData = database.getDataFromLocalDatabase(db_name)
-            # Exclude the links that have been discarded previously because not availble
-            data = data[(~data['Adress'].isin(existingData['Address'])) &
-                        (~data['AddressTotal'].isin(notAvailableLinks['adressTotal']))].reset_index(drop=True)
-            print('Addresses Already in DB:', len(existingData['Address'].unique()))
-            addressAvailable = np.abs(len(data['ID'].unique()) - len(existingData['ID'].unique()))
-            print('Number of Processable Addresses:', addressAvailable)
+        if exclude_already_processed:
+            # if the table is present, Exclude already processed streets, override
+            if allTables['table_name'].str.contains(db_name).any():
+                existingData = database.getDataFromLocalDatabase(db_name)
+                # Exclude the links that have been discarded previously because not availble
+                data = data[(~data['Adress'].isin(existingData['Address'])) &
+                            (~data['AddressTotal'].isin(notAvailableLinks['adressTotal']))].reset_index(drop=True)
+                print('Addresses Already in DB:', len(existingData['Address'].unique()))
+                addressAvailable = np.abs(len(data['ID'].unique()) - len(existingData['ID'].unique()))
+                print('Number of Processable Addresses:', addressAvailable)
+            else:
+                addressAvailable = len(data['ID'].unique())
         else:
-            addressAvailable = len(data['ID'].unique())
+            addressAvailable = len(data['Adress'].unique())
 
         dataCoord = []
         naLinks = []

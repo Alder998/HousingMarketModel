@@ -124,7 +124,7 @@ class areaDangerProcessing:
 
         return step2
 
-    def predictDangerFromNews (self, model="bert-base-uncased", returnType='cls'):
+    def predictDangerFromNews (self, prediction_set, model="bert-base-uncased", returnType='cls'):
 
         # Import the validation dataset from SQL
         load_dotenv('App.env')
@@ -134,18 +134,25 @@ class areaDangerProcessing:
         database_db = os.getenv('DATABASE_DB')
 
         # Instantiate the DB
+        # 'crimeValidationSet_'+self.city
         database = d.Database(database_user, database_password, database_port, database_db)
-        dataForValidation = database.getDataFromLocalDatabase('crimeValidationSet_'+self.city)
+        dataForValidation = database.getDataFromLocalDatabase(prediction_set)
 
-        # Encode the Validation Set
-        validationSetBinary = self.createBinaryCrimeDataset(dataForValidation, subsample=1, predict=True)
+        if prediction_set == 'newsDatabase_' + self.city:
+            path = "embeddings_sentences_" + returnType.lower() + ".pt"
+            validationSetEmbedding = torch.load(path)
+            validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
+            validationSetEmbedding = validationSetEmbedding.astype(np.float32)
+        else:
+            # Encode the Validation Set
+            validationSetBinary = self.createBinaryCrimeDataset(dataForValidation, subsample=1, predict=True)
 
-        # Create the Embedding for the Set
-        validationSetEmbedding = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(validationSetBinary, model,
-                                                                                            returnType, predict=True)
-        # Adjust the Data to be processed and convert to numbers (if necessary)
-        validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
-        validationSetEmbedding = validationSetEmbedding.astype(np.float32)
+            # Create the Embedding for the Set
+            validationSetEmbedding = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(validationSetBinary, model,
+                                                                                                returnType, predict=True)
+            # Adjust the Data to be processed and convert to numbers (if necessary)
+            validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
+            validationSetEmbedding = validationSetEmbedding.astype(np.float32)
 
         # Get the Saved Model
         storedModel = tf.keras.models.load_model('CrimeModel_'+ returnType.lower() +'.h5')
@@ -156,7 +163,7 @@ class areaDangerProcessing:
         crimePredData = []
         for i, prediction in enumerate(modelPrediction):
             singleRow = pd.concat([pd.Series(dataForValidation['Address'][i]),
-                                   pd.Series(np.max(prediction))], axis = 1).set_axis(['Address', 'DangerIndex'], axis = 1)
+                                   pd.Series(prediction[1])], axis = 1).set_axis(['Address', 'DangerIndex'], axis = 1)
             crimePredData.append(singleRow)
         crimePredData = pd.concat([df for df in crimePredData], axis = 0)
 
