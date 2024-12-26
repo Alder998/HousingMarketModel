@@ -66,7 +66,8 @@ class areaDangerProcessing:
 
         # Filter for crime tags
         words = ['arresti', 'furti', 'droga', 'morti', 'incendi', 'omicidi', 'spaccio', 'denunce', 'accoltella',
-                 'violenze', 'risse', 'inseguimenti', 'indagini', 'violenze sessuali', 'truffe', 'processi', 'spara', 'rapina']
+                 'violenze', 'risse', 'inseguimenti', 'indagini', 'violenze sessuali', 'truffe', 'processi', 'spara', 'rapina',
+                 'molesti', 'degrado', 'occupazioni', ]
         for word in words:
             data.loc[data['Topics'].str.contains(word), 'Crime'] = 1
         data['Crime'] = data['Crime'].fillna(0)

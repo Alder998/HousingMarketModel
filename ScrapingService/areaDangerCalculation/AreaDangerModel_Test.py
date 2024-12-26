@@ -10,6 +10,6 @@ import areaDangerModel as dm
 #                                                                 structure=[300, 300, 300, 300], returnType='mean')
 
 predicted = dp.areaDangerProcessing('Milano').predictDangerFromNews(model="bert-base-multilingual-cased",
-                                                    prediction_set='crimeValidationSet_'+'Milano', returnType='mean')
+                                                    prediction_set="newsDatabase_" + 'Milano', returnType='mean')
 # 'crimeValidationSet_'+'Milano'
 # Create the Dataset of street Danger
