@@ -65,9 +65,8 @@ class areaDangerProcessing:
             print('Articles in Validation Database:', len(dataForValidation['Article']))
 
         # Filter for crime tags
-        words = ['arresti', 'furti', 'droga', 'morti', 'incendi', 'omicidi', 'spaccio', 'denunce', 'accoltella',
-                 'violenze', 'risse', 'inseguimenti', 'indagini', 'violenze sessuali', 'truffe', 'processi', 'spara', 'rapina',
-                 'molesti', 'degrado', 'occupazioni', ]
+        words = pd.read_excel(r"C:\Users\alder\Downloads\Danger.xlsx")
+        words = list(words['Words'][words['Danger'] == 1].reset_index(drop=True))
         for word in words:
             data.loc[data['Topics'].str.contains(word), 'Crime'] = 1
         data['Crime'] = data['Crime'].fillna(0)
