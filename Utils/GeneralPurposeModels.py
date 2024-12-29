@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import os
 import pickle
+from sklearn.neighbors import KNeighborsClassifier
 
 class generalPurposeModels:
     def __init__(self, city):
@@ -13,15 +14,16 @@ class generalPurposeModels:
         pass
 
     # Area from coordinates functions
-    def trainModelForAreaPrediction (self, data, test_size, coord_filters):
+    def trainModelForAreaPrediction (self, data, test_size, coord_filters, model='SVC'):
 
-        # clean as much as possible, removing the areas that has few number of Observation
-        counts = data['Area'].value_counts()
-        data = data[data['Area'].isin(counts[counts >= 10].index)].reset_index(drop=True)
         # Filter for city Coordinates
         data = data[((data['Latitude'] > coord_filters[0]) &
                                    (data['Latitude'] < coord_filters[1])) & ((data['Longitude'] > coord_filters[2]) &
                                    (data['Longitude'] < coord_filters[3]))].reset_index(drop=True)
+
+        # clean as much as possible, removing the areas that has few number of Observation
+        counts = data['Area'].value_counts()
+        data = data[data['Area'].isin(counts[counts >= 5].index)].reset_index(drop=True)
 
         # Encode Areas for numeric Values, provide decodification
         # A little bit of stats
@@ -43,26 +45,44 @@ class generalPurposeModels:
         x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=1893)
 
         # Model Part
-        clf = SVC(kernel='rbf')
-        clf.fit(x_train, y_train)
-        predictions = clf.predict(x_test)
-        accuracy = accuracy_score(y_test, predictions)
-        print('Accuracy: ', round(accuracy*100, 4), '%')
+        if model == 'SVC':
+            mod = SVC(kernel='linear')
+            mod.fit(x_train, y_train)
+            predictions = mod.predict(x_test)
+            accuracy = accuracy_score(y_test, predictions)
+            print('Accuracy: ', round(accuracy*100, 4), '%')
+        elif model == 'KNN':
+            mod = KNeighborsClassifier(n_neighbors=len(data['Area'].unique()))
+            mod.fit(x_train, y_train)
+            predictions = mod.predict(x_test)
+            accuracy = accuracy_score(y_test, predictions)
+            print('Accuracy: ', round(accuracy*100, 4), '%')
+        else:
+            raise Exception("Model not specified!")
 
         # Store Model for Future Purposes, if it does not Exist
-        path = "AreaPredictionModel_" + self.city + ".pkl"
+        path = "AreaPredictionModel_" + self.city + "_" + model + ".pkl"
         if not os.path.exists(path):
             with open(path, "wb") as f:
-                pickle.dump(clf, f)
+                pickle.dump(mod, f)
             print('Model ' + path + ' Correctly Saved!')
         else:
             print("Using Stored Model " + path + " ...")
 
         return accuracy
 
-    def predictAreaFromCoordinates (self, coordinates):
+    def predictAreaFromCoordinates (self, dataToPredict, model='SVC'):
 
+        path = "AreaPredictionModel_" + self.city + "_" + model + ".pkl"
+        # Load model if stored, else raise Exception
+        if not os.path.exists(path):
+            raise Exception ('Model Not Existing!')
 
+        # Load Model
+        with open(path, "rb") as f:
+            loaded_model = pickle.load(f)
+        # Predict
+        predictions = loaded_model.predict(dataToPredict)
 
-        return 0
+        return predictions
 
