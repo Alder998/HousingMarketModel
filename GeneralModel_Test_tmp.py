@@ -64,5 +64,4 @@ for ar in range(len(encodeData['Area'])):
 plt.figure(figsize=(15, 8))
 plt.scatter(reference['Latitude'], reference['Longitude'], c=reference["Area_enc"], cmap="viridis")
 #plt.scatter(notAvailable['Latitude'], notAvailable['Longitude'], marker='x', color = 'red', label='Not Available', s=7)
-plt.legend()
 plt.show()
