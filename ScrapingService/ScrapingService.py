@@ -49,59 +49,72 @@ class ScrapingService:
                     if "/annunci/" in link['href']:
                         pageLinks.append(link['href'])
 
-        pageLinks = pd.DataFrame(pageLinks).drop_duplicates().reset_index(drop=True).set_axis(['link'], axis=1)
-        print("number of offers found: ", len(pageLinks['link']))
-        # Isolate the Offer Univocal code
-        pageLinks = pd.concat([pageLinks, pageLinks['link'].str.split("/").str[4]], axis=1).set_axis(['link', 'ID'], axis=1)
+        if len(pageLinks) > 0:
+            pageLinks = pd.DataFrame(pageLinks).drop_duplicates().reset_index(drop=True).set_axis(['link'], axis=1)
+            print("number of offers found: ", len(pageLinks['link']))
+            # Isolate the Offer Univocal code
+            pageLinks = pd.concat([pageLinks, pageLinks['link'].str.split("/").str[4]], axis=1).set_axis(['link', 'ID'], axis=1)
 
-        # Update (temporary)
-        existingFile = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_tmp.xlsx")
-        updatedFiles = pd.concat([existingFile, pageLinks], axis=0).drop_duplicates().reset_index(drop=True)
-        updatedFiles.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_tmp.xlsx", index=False)
-        print('Number of houses in DB:', len(updatedFiles['link']))
-
-        # Update (SQL, with customized table name)
-        db_name = 'offerLinkTable_'+self.city
-        # Instantiate the DB
-        database = d.Database(database_user, database_password, database_port, database_db)
-        # Get all table in DB
-        allTables = database.getAllTablesInDatabase()
-        # if the table is present, append, otherwhise, create
-        if allTables['table_name'].str.contains(db_name).any():
-            database.appendDataToExistingTable(updatedFiles, db_name)
+            # Update (SQL, with customized table name)
+            db_name = 'offerLinkTable_'+self.city
+            # Instantiate the DB
+            database = d.Database(database_user, database_password, database_port, database_db)
+            # Get all table in DB
+            allTables = database.getAllTablesInDatabase()
+            # if the table is present, append, otherwhise, create
+            if allTables['table_name'].str.contains(db_name).any():
+                database.appendDataToExistingTable(pageLinks, db_name)
+            else:
+                # If Created now, get the Entire set of Data
+                database.createTable(pageLinks, db_name)
+                pageLinks = database.getDataFromLocalDatabase("offerLinkTable_" + self.city + "")
         else:
-            database.createTable(updatedFiles, db_name)
+            print('No Links found for the current Iteration!')
+            pageLinks = pd.DataFrame(pd.concat([pd.Series([]), pd.Series([])], axis = 1)).set_axis(['link', 'ID'], axis=1)
 
-        return updatedFiles
+        return pageLinks
 
     def massiveLinkScraper(self, pages, iterations, filterString):
+        allLinks = list()
         for i in range(iterations):
             print('Iteration:', i)
             data = self.getLinkDB(pages, filterString)
+            allLinks.append(data)
         # The last data after the iteration is enough, since the function getLinkDB returns the already-updated Database
-        return data
+        allLinks = pd.concat([df for df in allLinks], axis = 0).reset_index(drop=True)
+        return allLinks
 
     def extractFeaturesFromLinks(self, linksDB):
         import requests
         from bs4 import BeautifulSoup
         import pandas as pd
 
-        # Get the data (change to SQL when possible)
-        existing = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_all_tmp.xlsx")
+        # Database instantiation (while the links DB is provided by the function)
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        database = d.Database(database_user, database_password, database_port, database_db)
+        # Get Existing Data
+        existing = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city + "")
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"}
         updatedFiles = linksDB
         # Process only the IDs that are not in the existing file
         notAvailableLinks = pd.read_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\not_available_links.xlsx")
-        linksToProcess = updatedFiles[~updatedFiles['ID'].isin(existing['ID']) & ~updatedFiles['link'].isin(notAvailableLinks['link'])].reset_index(drop=True)
+        # This is to avoid an error in the first iteration, when the existing Database is the same as the created link Database
+        if len(updatedFiles['ID']) != len(existing['ID']):
+            linksToProcess = updatedFiles[~updatedFiles['ID'].isin(existing['ID']) & ~updatedFiles['link'].isin(notAvailableLinks['link'])].reset_index(drop=True)
+            if len(linksToProcess['ID']) == 0:
+                raise Exception('All the Links in the Database have already been Processed!')
+        else:
+            linksToProcess = existing
         unavailableLinks = []
         responseList = []
         charDB = []
         for n, offer in enumerate(linksToProcess['link']):
-
-            if offer == 'https://www.immobiliare.it/annunci/116091343/':
-                print('qui')
 
             # General
             respI = requests.get(offer, headers=headers)
@@ -196,14 +209,6 @@ class ScrapingService:
         aggregatedData = aggregatedData.merge(updatedFiles, on='link').drop_duplicates(
             subset=['Adress', 'Price']).reset_index(drop=True)
 
-        # Get the existing data, concat, drop duplicates
-        aggregatedData = pd.concat([existing, aggregatedData], axis=0).drop_duplicates(keep='last').reset_index(drop=True)
-        # Save to excel
-        aggregatedData.to_excel(r"C:\Users\alder\Desktop\Projects\storage_tmp\houses_all_tmp.xlsx", index=False,
-                                engine='xlsxwriter')
-        # Analytics on the extracted Data
-        print('Total number of Processable Offers: ', len(aggregatedData.dropna().reset_index(drop=True)['link']))
-
         return aggregatedData
 
     def cleanOffersDatabase(self, dataRaw):
@@ -217,8 +222,7 @@ class ScrapingService:
 
         # STEP 3: Clean the Database, obtain data that could be processed by a Model
         aggregatedData = dataRaw
-        # print(aggregatedData['Price'].unique())
-
+        aggregatedData = aggregatedData.dropna(subset=['City', 'Adress'])
         print('cleaning the Scraping Database...')
 
         # Price
@@ -357,7 +361,7 @@ class ScrapingService:
             # Now, scrape news about the street/Area
             # get the address in a fungible format
             addressForScrape = '+'.join(address.lower().split(' '))  # + '+' + city.lower()
-            streetLink = 'https://www.milanotoday.it/search/query/' + addressForScrape + '/channel/cronaca'
+            streetLink = 'https://www.'+ self.city.lower() + 'today.it/search/query/' + addressForScrape + '/channel/cronaca'
             # print(streetLink)
             try:
                 respJ = requests.get(streetLink, headers=headers)
