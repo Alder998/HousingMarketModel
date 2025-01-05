@@ -5,9 +5,9 @@ import os
 from dotenv import load_dotenv
 from Utils import Database as d
 
-city = 'Genova'
-iterations = 5
-pages = 5
+city = 'Torino'
+iterations = 10
+pages = 10
 
 # Two different ways of scraping the house offers
 # If Existing, process, if not, Start with a 1-iteration Scraping
@@ -25,13 +25,13 @@ if ~allTables['table_name'].str.contains(db_name).any():
     firstIteration = s.ScrapingService(city).launchScraping(2, 1, filterString = "")
 
 # Once all set, proceed
-#updatedAll = s.ScrapingService(city).launchGeneralizedScraping(pages, iterations)
-#updated = s.ScrapingService(city).launchScraping(pages, iterations, filterString = "")
+updatedAll = s.ScrapingService(city).launchGeneralizedScraping(pages, iterations)
+updated = s.ScrapingService(city).launchScraping(pages, iterations, filterString = "")
 
 # News Scraper
-#news = s.ScrapingService(city).launchNewsScraper(subsample=50, exclude_already_processed=False, all_streets=False)
+news = s.ScrapingService(city).launchNewsScraper(subsample=1000, exclude_already_processed=True, all_streets=False)
 # Geographic Scraper
 geo = s.ScrapingService(city).createOrUpdateGeoDataset(base_dataset="offerDetailDatabase_" + city, exclude_already_processed=True,
-                                                           subsample=75)
+                                                           subsample=30)
 
 print('Analysis Terminated Successfully!')

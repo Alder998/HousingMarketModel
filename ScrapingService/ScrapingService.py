@@ -97,7 +97,14 @@ class ScrapingService:
         database_db = os.getenv('DATABASE_DB')
         database = d.Database(database_user, database_password, database_port, database_db)
         # Get Existing Data
-        existing = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city + "")
+
+        db_name = "offerDetailDatabase_" + self.city
+        allTables = database.getAllTablesInDatabase()
+        # if the table is present, append, otherwhise, create
+        if allTables['table_name'].str.contains(db_name).any():
+            existing = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city + "")
+        else:
+            existing = pd.DataFrame(pd.Series([])).set_axis(['ID'], axis = 1)
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"}
@@ -244,9 +251,11 @@ class ScrapingService:
         aggregatedData = aggregatedData[
             ~aggregatedData['Toilets'].str.contains(' - ') & ~aggregatedData['Toilets'].str.contains('da')]
         aggregatedData['Toilets'] = aggregatedData['Toilets'].str.replace(' bagno', '').str.replace(' bagni',
-                                                                                                    '').str.replace('+',
-                                                                                                                    '')
-        aggregatedData['Toilets'] = aggregatedData['Toilets'].astype(int)
+                                                                                                    '').str.replace('+','')
+        # Convert to numeric, corece errors to NaN
+        aggregatedData['Toilets'] = pd.to_numeric(aggregatedData['Toilets'], errors='coerce')
+        # Remove NaN
+        aggregatedData = aggregatedData.dropna(subset=['Toilets'])
 
         # Rooms
         aggregatedData = aggregatedData[
