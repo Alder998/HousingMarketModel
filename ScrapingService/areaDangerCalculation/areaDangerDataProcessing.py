@@ -72,7 +72,15 @@ class areaDangerProcessing:
         data['Crime'] = data['Crime'].fillna(0)
 
         # Encode the street name with the street Encoder from SQL
-        encodingData = database.getDataFromLocalDatabase("geoData_" + self.city)
+        availableCities = database.getAllTablesInDatabase()
+        availableCities = availableCities[availableCities['table_name'].str.contains("geoData_")].reset_index(drop=True)
+        availableCities = availableCities['table_name'].str.split('_').str[1]
+        encodingData = []
+        for city in availableCities:
+            enc = database.getDataFromLocalDatabase("geoData_" + city)
+            encodingData.append(enc)
+        encodingData = pd.concat([df for df in encodingData], axis = 0).reset_index(drop=True)
+
         encodedAdressData = pd.merge(left=data, right=encodingData, left_on='Address', right_on='Address', how='inner').drop_duplicates(subset=['Article', 'Address']).reset_index(drop=True)
 
         # Create the final database
@@ -110,7 +118,14 @@ class areaDangerProcessing:
 
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
-        dataRaw = database.getDataFromLocalDatabase("newsDatabase_" + self.city)
+        availableCities = database.getAllTablesInDatabase()
+        availableCities = availableCities[availableCities['table_name'].str.contains("newsDatabase_")].reset_index(drop=True)
+        availableCities = availableCities['table_name'].str.split('_').str[1]
+        dataRaw = []
+        for city in availableCities:
+            raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
+            dataRaw.append(raw)
+        dataRaw = pd.concat([df for df in dataRaw], axis = 0).reset_index(drop=True)
 
         step1 = self.createBinaryCrimeDataset(dataRaw, subsample=subsample)
         path = "embeddings_sentences_" + returnType.lower() + ".pt"
