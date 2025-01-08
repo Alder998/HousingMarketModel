@@ -132,7 +132,9 @@ class ScrapingService:
 
             # ---Indicazioni Geografiche---
             try:
-                div_genI = soupI.find_all("span", class_="re-title__location")
+                # "re-blockTitle__location"
+                # "re-title__location"
+                div_genI = soupI.find_all("span", class_="re-blockTitle__location")
                 singleGeo = []
                 for single_divI in div_genI:
                     geoGen = single_divI.text

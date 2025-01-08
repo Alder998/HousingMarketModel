@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from Utils import Database as d
 
-city = 'Genova'
+city = 'Bologna'
 iterations = 10
 pages = 10
 
