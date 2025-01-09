@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from Utils import Database as d
 
-city = 'Bologna'
+city = 'Palermo'
 iterations = 10
 pages = 10
 
@@ -29,9 +29,10 @@ updatedAll = s.ScrapingService(city).launchGeneralizedScraping(pages, iterations
 updated = s.ScrapingService(city).launchScraping(pages, iterations, filterString = "")
 
 # News Scraper
-#news = s.ScrapingService(city).launchNewsScraper(subsample=1000, exclude_already_processed=True, all_streets=False)
-# Geographic Scraper
-geo = s.ScrapingService(city).createOrUpdateGeoDataset(base_dataset="offerDetailDatabase_" + city, exclude_already_processed=True,
-                                                           subsample=30)
+news = s.ScrapingService(city).launchNewsScraper(subsample=2000, exclude_already_processed=True, all_streets=False)
+# Geographic Scraper (better to have many iteration on small requests to avoid max retries)
+for retry in range(0,500):
+    geo = s.ScrapingService(city).createOrUpdateGeoDataset(base_dataset="offerDetailDatabase_" + city, exclude_already_processed=True,
+                                                               subsample=1)
 
 print('Analysis Terminated Successfully!')

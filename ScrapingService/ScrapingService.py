@@ -263,8 +263,7 @@ class ScrapingService:
         aggregatedData = aggregatedData[
             ~aggregatedData['Rooms'].str.contains(' - ') & ~aggregatedData['Rooms'].str.contains('da')]
         aggregatedData['Rooms'] = aggregatedData['Rooms'].str.replace(' locale', '').str.replace(' locali',
-                                                                                                 '').str.replace('+',
-                                                                                                                 '')
+                                                                                                 '').str.replace('+','')
         try:
             aggregatedData['Rooms'] = aggregatedData['Rooms'].astype(int)
         except Exception as e:
@@ -276,7 +275,14 @@ class ScrapingService:
             & aggregatedData['Floor'].str.contains('Piano')]
         aggregatedData['Floor'] = aggregatedData['Floor'].str.replace('Piano ', '').str.replace('.', '').str.replace(
             'R', '0.5').str.replace('T', '0').str.replace('S', '-1')
-        aggregatedData['Floor'] = aggregatedData['Floor'].astype(float)
+
+        # MONITOR THE FOLLOWING CODE
+        # aggregatedData['Floor'] = aggregatedData['Floor'].astype(float)
+
+        # Convert to numeric, corece errors to NaN
+        aggregatedData['Floor'] = pd.to_numeric(aggregatedData['Floor'], errors='coerce')
+        # Remove NaN
+        aggregatedData = aggregatedData.dropna(subset=['Floor'])
 
         # Size
         aggregatedData = aggregatedData[
