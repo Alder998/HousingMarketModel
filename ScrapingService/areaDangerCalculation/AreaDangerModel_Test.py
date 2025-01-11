@@ -7,17 +7,16 @@ from dotenv import load_dotenv
 from Utils import Database as d
 
 returnType = 'mean'
-city = 'Milano'
 subsample = 0.80
 test_size = 0.30
 
 # Model Trainer (if not trained)
-crimeDataForModel = dp.areaDangerProcessing(city).processDatasetForModel(model="bert-base-multilingual-cased", returnType=returnType,
+crimeDataForModel = dp.areaDangerProcessing().processDatasetForModel(model="bert-base-multilingual-cased", returnType=returnType,
                                                                              subsample=subsample, test_size=test_size)
 # Train only if is not stored
 path = "CrimeModel_" + returnType.lower() + ".h5"
 if not os.path.exists(path):
-    model = dm.areaDangerModel(city).trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=100,
+    model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=100,
                                                     structure=[300, 300, 300, 300], returnType=returnType)
 else:
     print('Using Model' + " CrimeModel_" + returnType.lower() + ".h5...")
@@ -37,7 +36,7 @@ availableCities = availableCities[availableCities['table_name'].str.contains("ge
 availableCities = availableCities['table_name'].str.split('_').str[1]
 encodingData = []
 for cityS in availableCities:
-    predicted = dp.areaDangerProcessing(city).predictDangerFromNews(model="bert-base-multilingual-cased",
+    predicted = dp.areaDangerProcessing().predictDangerFromNews(model="bert-base-multilingual-cased",
                                                         prediction_set="newsDatabase_" + cityS, returnType=returnType)
 # 'crimeValidationSet_'+'Milano' for validation
 # 'newsDatabase_' + city for all news

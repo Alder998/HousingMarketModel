@@ -14,8 +14,7 @@ import torch
 import tensorflow as tf
 
 class areaDangerModel:
-    def __init__(self, city):
-        self.city = city
+    def __init__(self):
         pass
 
     def encodeTextVariablesInDataset (self, dataset, model="bert-base-uncased", returnType='cls', predict=False):

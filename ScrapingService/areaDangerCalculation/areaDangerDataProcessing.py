@@ -14,8 +14,7 @@ import torch
 import tensorflow as tf
 
 class areaDangerProcessing:
-    def __init__(self, city):
-        self.city = city
+    def __init__(self):
         pass
 
     def createBinaryCrimeDataset (self, dataRaw, subsample=1, predict=False):
@@ -43,7 +42,7 @@ class areaDangerProcessing:
             # Take care of the validation Dataset, using the news as discriminator
             dataForValidation = dataRaw[~dataRaw['Article'].isin(data['Article'])]
             # Save or update the validation set
-            db_name = 'crimeValidationSet_'+self.city
+            db_name = 'crimeValidationSet'
             allTables = database.getAllTablesInDatabase()
             if allTables['table_name'].str.contains(db_name).any():
                 database.appendDataToExistingTable(dataForValidation, db_name)
@@ -124,6 +123,9 @@ class areaDangerProcessing:
         dataRaw = []
         for city in availableCities:
             raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
+            # Concatenate with the city
+            raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis = 1),
+                             raw], axis = 1)
             dataRaw.append(raw)
         dataRaw = pd.concat([df for df in dataRaw], axis = 0).reset_index(drop=True)
 
@@ -134,7 +136,7 @@ class areaDangerProcessing:
             loaded_data = torch.load(path)
             step2 = self.trainTestSplit(loaded_data, test_size)
         else:
-            step1_1 = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(step1, model, returnType)
+            step1_1 = dm.areaDangerModel().encodeTextVariablesInDataset(step1, model, returnType)
             step2 = self.trainTestSplit(step1_1, test_size)
 
         return step2
@@ -149,11 +151,10 @@ class areaDangerProcessing:
         database_db = os.getenv('DATABASE_DB')
 
         # Instantiate the DB
-        # 'crimeValidationSet_'+self.city
         database = d.Database(database_user, database_password, database_port, database_db)
         dataForValidation = database.getDataFromLocalDatabase(prediction_set)
 
-        if prediction_set == 'newsDatabase_' + self.city:
+        if 'newsDatabase_' in prediction_set:
             path = "embeddings_sentences_" + returnType.lower() + ".pt"
             validationSetEmbedding = torch.load(path)
             validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
@@ -163,7 +164,7 @@ class areaDangerProcessing:
             validationSetBinary = self.createBinaryCrimeDataset(dataForValidation, subsample=1, predict=True)
 
             # Create the Embedding for the Set
-            validationSetEmbedding = dm.areaDangerModel(self.city).encodeTextVariablesInDataset(validationSetBinary, model,
+            validationSetEmbedding = dm.areaDangerModel().encodeTextVariablesInDataset(validationSetBinary, model,
                                                                                                 returnType, predict=True)
             # Adjust the Data to be processed and convert to numbers (if necessary)
             validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
@@ -183,7 +184,7 @@ class areaDangerProcessing:
         crimePredData = pd.concat([df for df in crimePredData], axis = 0)
 
         # Save on SQL
-        db_name = 'dangerPredictionSet_' + self.city
+        db_name = 'dangerPredictionSet'
         allTables = database.getAllTablesInDatabase()
         if allTables['table_name'].str.contains(db_name).any():
             database.appendDataToExistingTable(crimePredData, db_name)
