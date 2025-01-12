@@ -152,14 +152,27 @@ class areaDangerProcessing:
 
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
-        dataForValidation = database.getDataFromLocalDatabase(prediction_set)
 
-        if 'newsDatabase_' in prediction_set:
+        if 'newsDatabase' in prediction_set:
+            availableCities = database.getAllTablesInDatabase()
+            availableCities = availableCities[availableCities['table_name'].str.contains("newsDatabase_")].reset_index(
+                drop=True)
+            availableCities = availableCities['table_name'].str.split('_').str[1]
+            dataRaw = []
+            for city in availableCities:
+                raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
+                # Concatenate with the city
+                raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis=1),
+                                 raw], axis=1)
+                dataRaw.append(raw)
+            dataForValidation = pd.concat([df for df in dataRaw], axis=0).reset_index(drop=True)
+
             path = "embeddings_sentences_" + returnType.lower() + ".pt"
             validationSetEmbedding = torch.load(path)
             validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
             validationSetEmbedding = validationSetEmbedding.astype(np.float32)
         else:
+            dataForValidation = database.getDataFromLocalDatabase(prediction_set)
             # Encode the Validation Set
             validationSetBinary = self.createBinaryCrimeDataset(dataForValidation, subsample=1, predict=True)
 
@@ -184,12 +197,9 @@ class areaDangerProcessing:
         crimePredData = pd.concat([df for df in crimePredData], axis = 0)
 
         # Save on SQL
-        db_name = 'dangerPredictionSet'
-        allTables = database.getAllTablesInDatabase()
-        if allTables['table_name'].str.contains(db_name).any():
-            database.appendDataToExistingTable(crimePredData, db_name)
-        else:
-            database.createTable(crimePredData, db_name)
+        db_name = 'dangerPredictionSet_' + prediction_set
+        # Always Override
+        database.createTable(crimePredData, db_name)
 
         return crimePredData
 
