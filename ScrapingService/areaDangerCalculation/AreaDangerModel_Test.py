@@ -18,7 +18,8 @@ crimeDataForModel = dp.areaDangerProcessing().processDatasetForModel(model="bert
 path = "CrimeModel_" + returnType.lower() + ".h5"
 if not os.path.exists(path):
     model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=100,
-                                                    structure=[300, 300, 300, 300], returnType=returnType)
+                                                    structure={'FF':[500, 500, 500], 'LSM':[30, 30]},
+                                                    returnType=returnType)
 else:
     print('Using Model' + " CrimeModel_" + returnType.lower() + ".h5...")
 

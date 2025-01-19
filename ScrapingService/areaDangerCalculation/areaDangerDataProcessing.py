@@ -67,7 +67,7 @@ class areaDangerProcessing:
         words = pd.read_excel(r"C:\Users\alder\Downloads\Danger.xlsx")
         words = list(words['Words'][words['Danger'] == 1].reset_index(drop=True))
         for word in words:
-            data.loc[data['Topics'].str.contains(word), 'Crime'] = 1
+            data.loc[data['Topics'].str.contains(word, case=False), 'Crime'] = 1
         data['Crime'] = data['Crime'].fillna(0)
 
         # Encode the street name with the street Encoder from SQL

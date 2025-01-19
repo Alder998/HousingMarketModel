@@ -63,7 +63,7 @@ class areaDangerModel:
 
     # NN Model Itself, very simple one
 
-    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure=[500, 500, 500], returnType = 'cls'):
+    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure={'FF':[500, 500, 500], 'LSM':[]}, returnType = 'cls'):
 
         # returns: x_train, x_test, y_train, y_test
         x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
@@ -78,9 +78,28 @@ class areaDangerModel:
 
         # Define the Model with custom Structure
         model = tf.keras.Sequential()
-        for l in range(len(structure)):
-            layer = tf.keras.layers.Dense(structure[l], activation='relu')
-            model.add(layer)
+        # Add the LSM layer, if present in structure
+        if len(structure['LSM']) > 0:
+            # Expand dimensions to add timestamp
+            model.add(tf.keras.layers.Lambda(lambda x: tf.expand_dims(x, axis=1), input_shape=(x_train.shape[1],)))
+            for l in range(len(structure['LSM'])):
+                units = structure['LSM'][l]
+                if l == 0:
+                    # Input_shape required on the first layer
+                    layer = tf.keras.layers.LSTM(units, activation='tanh', return_sequences=True, input_shape=(None, x_train.shape[1]))
+                else:
+                    # For others, no issues
+                    # Remove the timestamp param if the layer is the last one of the LSM Structure
+                    if l == len(structure['LSM']) - 1:
+                        layer = tf.keras.layers.LSTM(units, activation='tanh', return_sequences=False)
+                    else:
+                        layer = tf.keras.layers.LSTM(units, activation='tanh', return_sequences=True)
+                model.add(layer)
+        # then, add the FF layer
+        for l in range(len(structure['FF'])):
+            unitsFF = structure['FF'][l]
+            layerFF = tf.keras.layers.Dense(unitsFF, activation='relu')
+            model.add(layerFF)
         model.add(tf.keras.layers.Dense(2))
 
         # Compile
