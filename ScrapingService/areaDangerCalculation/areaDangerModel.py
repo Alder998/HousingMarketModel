@@ -81,7 +81,7 @@ class areaDangerModel:
         # Add the LSM layer, if present in structure
         if len(structure['LSM']) > 0:
             # Expand dimensions to add timestamp
-            model.add(tf.keras.layers.Lambda(lambda x: tf.expand_dims(x, axis=1), input_shape=(x_train.shape[1],)))
+            model.add(tf.keras.layers.Reshape((1, x_train.shape[1]), input_shape=(x_train.shape[1],)))
             for l in range(len(structure['LSM'])):
                 units = structure['LSM'][l]
                 if l == 0:
