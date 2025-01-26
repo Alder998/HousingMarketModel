@@ -14,29 +14,83 @@ from datetime import datetime
 from Utils import Database as d
 import os
 from dotenv import load_dotenv
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
+from geopy.distance import geodesic
+import requests
 
 class distanceCalculationService:
     def __init__(self, city):
         self.city = city
         pass
 
-    # Utils-like method to have a city center proxy
-    def getCityCentreFromHousePrices(self, plot=False):
+    # utils-like methods to compute distance having latitude and longitude
 
-        # Instantiate the DB
-        load_dotenv('App.env')
-        database_user = os.getenv('DATABASE_USER')
-        database_password = os.getenv('DATABASE_PASSWORD')
-        database_port = os.getenv('DATABASE_PORT')
-        database_db = os.getenv('DATABASE_DB')
-        database = d.Database(database_user, database_password, database_port, database_db)
-        dataG = database.getDataFromLocalDatabase("geoData_" + self.city)
-        dataH = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
+    def getIfPointIsInCityCenter (self, boundaryPoints, testPoint):
 
-        # Filter for Milan city boundaries, and drop duplicates if present
+        # Create Delaunay Structure
+        hull_region = Delaunay(boundaryPoints)
+        # Verify if a given point is inside the Hull Region (== city Center)
+        isInCityCenter = hull_region.find_simplex(testPoint) >= 0
+
+        return isInCityCenter
+
+    # Distance ACF
+    def computeDistanceACF (self, coords1, coords2):
+
+        # order: Latitude, Longitude
+        # Coords2: points from where the distance has to be computed
+        # Coords1: main point
+
+        distance = geodesic(coords1, coords2).kilometers
+
+        return distance
+
+    def computeDistanceWithCar (self, coords1, coords2):
+
+        # Coords must be in format "latitude, longitude"
+        start = str(coords1[0]) + ',' + str(coords1[1])
+        end = str(coords2[0]) + ',' + str(coords2[1])
+
+        # Get the URL from OpenStreetMap
+        url = f"http://router.project-osrm.org/route/v1/driving/{start};{end}?overview=false"
+
+        # get request from API
+        response = requests.get(url)
+        data = response.json()
+
+        # Get the distance in km
+        distance = data['routes'][0]['distance'] / 1000
+
+        return distance
+
+    # Car-distance by Car (in minutes)
+    def computeDistanceTimeByCar (self, coords1, coords2):
+
+        # Coords must be in format "latitude, longitude"
+        start = str(coords1[0]) + ',' + str(coords1[1])
+        end = str(coords2[0]) + ',' + str(coords2[1])
+
+        # Public instance API
+        url = f"http://router.project-osrm.org/route/v1/driving/{start};{end}?overview=false"
+
+        # API get Requests
+        response = requests.get(url)
+        data = response.json()
+
+        # get the travelling time in minutes
+        travel_time_seconds = data['routes'][0]['duration']
+        travel_time_minutes = travel_time_seconds / 60
+
+        return travel_time_minutes
+
+
+    # Utils-Like Method to filter for cities Boundaries
+    def filterForCityBoundaries (self, dataG):
+
+        # DataG stands for geoData
+        # Filter for city boundaries, and drop duplicates if present
         if self.city == 'Milano':
             dataG = dataG[((dataG['Latitude'] > 45.40) & (dataG['Latitude'] < 45.55)) &
                           ((dataG['Longitude'] < 9.26) & (dataG['Longitude'] > 9.10))].reset_index(drop=True)
@@ -64,6 +118,24 @@ class distanceCalculationService:
         elif self.city == 'Catania':
             dataG = dataG[((dataG['Latitude'] > 37.45) & (dataG['Latitude'] < 37.6)) &
                           ((dataG['Longitude'] > 15.0) & (dataG['Longitude'] < 15.13))].reset_index(drop=True)
+        else:
+            raise Exception('City not Valid!')
+        return dataG
+
+    # Utils-like method to have a city center proxy
+    def getCityCentreFromHousePrices(self, plot=False):
+
+        # Instantiate the DB
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        database = d.Database(database_user, database_password, database_port, database_db)
+        dataG = database.getDataFromLocalDatabase("geoData_" + self.city)
+        dataH = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
+
+        dataG = self.filterForCityBoundaries(dataG)
         dataG = dataG.dropna()
 
         # Now, merge the houses Database to take the adress of the houses
@@ -129,9 +201,79 @@ class distanceCalculationService:
 
     # 1. Distance as the crow flies from Address to the center
     # Implement in the next episode
-    def computeDistanceACFFromCityCentre (self):
+    def computeDistanceFromCityCentre (self, type = 'ACF'):
 
-        return 0
+        # Load the Houses Coordinates
+        # Instantiate the Database
+        load_dotenv('App.env')
+        database_user = os.getenv('DATABASE_USER')
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_port = os.getenv('DATABASE_PORT')
+        database_db = os.getenv('DATABASE_DB')
+        db_name = 'DistanceCalculation_' + self.city + '_' + type
+
+        # Instantiate the DB
+        database = d.Database(database_user, database_password, database_port, database_db)
+        # Get the geo database
+        geoData = database.getDataFromLocalDatabase("geoData_" + self.city + "").dropna().drop_duplicates().reset_index(drop=True)
+        geoData = self.filterForCityBoundaries(geoData)
+
+        # City centre computed as the priciest area on house prices
+
+        # get the city center points
+        cityCentrePoints = self.getCityCentreFromHousePrices(plot = False)
+        # compute distance from each points
+
+        minimumDistance = []
+        for i in range(len(geoData['Latitude'])):
+            # Obtain the coordinates of each one of the houses
+            coordSet = list([geoData['Latitude'][i], geoData['Longitude'][i]])
+            distances = []
+            for j in range(len(cityCentrePoints)):
+                # Obtain the coordinates of each one of the boundary points of the city centre
+                coordSet1 = cityCentrePoints[j]
+                if type == 'ACF':
+                    cityCentreDistance = self.computeDistanceACF(coordSet, coordSet1)
+                    # If a Point is in city Center, then put 0 on distance
+                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
+                        cityCentreDistance = 0.0
+                elif type == 'car':
+                    cityCentreDistance = self.computeDistanceWithCar(coordSet, coordSet1)
+                    # If a Point is in city Center, then put 0 on distance
+                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
+                        cityCentreDistance = 0.0
+                elif type == 'car-time':
+                    cityCentreDistance = self.computeDistanceTimeByCar(coordSet, coordSet1)
+                    # If a Point is in city Center, then put 0 on distance
+                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
+                        cityCentreDistance = 0.0
+                else:
+                    raise Exception('Method Not Specified!!')
+                # Take the nearest point (the minimum out of the distance)
+                distances.append(cityCentreDistance)
+
+            minimumDistance.append(np.min(distances))
+            # Logs and check
+            if 'time' in type:
+                print(str(round((i / len(geoData['Latitude'])) * 100, 2)) + '% - ' +
+                      'Computing time from the city centre for Adress: ' + geoData['Address'][i] + ' - City: ' +
+                      self.city + ' - Time: ' + str(round(np.min(distances), 2)) + ' minutes')
+            else:
+                print(str(round((i / len(geoData['Latitude'])) * 100, 2)) + '% - ' +
+                      'Computing Distance from the city centre for Adress: ' + geoData['Address'][i] + ' - City: ' +
+                      self.city + ' - Distance: ' + str(round(np.min(distances), 2)) + ' km')
+
+        # Concat the house coordinated with the distance from city centre
+        geoDataWithDist = pd.concat([geoData[['ID', 'Address']], pd.DataFrame(minimumDistance).set_axis(['Distance' + type + ' from Center'], axis=1)], axis=1)
+
+        # Save in the Database, if not existing, concatenate otherwise
+        allTables = database.getAllTablesInDatabase()
+        if allTables['table_name'].str.contains(db_name).any():
+            database.appendDataToExistingTable(geoDataWithDist, db_name)
+        else:
+            database.createTable(geoDataWithDist, db_name)
+
+        return geoDataWithDist
 
 
 

@@ -1,7 +1,7 @@
 import DistanceCalculationService as dc
 
-city = 'Roma'
+city = 'Milano'
 
-dist = dc.distanceCalculationService(city).getCityCentreFromHousePrices(plot=True)
+dist = dc.distanceCalculationService(city).computeDistanceFromCityCentre(type = 'car-time')
 
 print(dist)
