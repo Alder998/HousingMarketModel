@@ -188,6 +188,7 @@ class areaDangerProcessing:
 
         # Use it to predict probabilities
         modelPrediction = storedModel.predict(validationSetEmbedding)
+        #print(modelPrediction)
         # Create the Crime Prediction Dataset
         crimePredData = []
         for i, prediction in enumerate(modelPrediction):

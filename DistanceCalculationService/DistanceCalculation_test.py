@@ -2,6 +2,7 @@ import DistanceCalculationService as dc
 
 city = 'Milano'
 
-dist = dc.distanceCalculationService(city).computeDistanceFromCityCentre(type = 'car-time')
+# Possible Values for Type: 'car-time' | 'ACF' | 'car'
+dist = dc.distanceCalculationService(city).computeDistanceFromCityCentre(type = 'car-time', subsample = 100)
 
 print(dist)

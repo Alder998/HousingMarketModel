@@ -68,6 +68,27 @@ class Database:
 
         return data
 
+    def excludeAlreadyProcessedData(self, data, tableName, key, logs = False):
+
+        # get the data from an existing table (user-defined), and check if the table exists
+        allTables = self.getAllTablesInDatabase()
+        # Case when the table is not existing, so return the original data
+        if ~allTables['table_name'].str.contains(tableName).any():
+            return data
+        else:
+            # get the table
+            existingTable = self.getDataFromLocalDatabase(tableName)
+            resulting = data[~data[key].isin(existingTable[key])].reset_index(drop=True)
+            if resulting.empty:
+                raise Exception('All the data in the Current Table has been Processed!')
+            if logs:
+                print('DATA SIZE FROM ALREADY-EXISTING OBSERVATION FILTERING...')
+                print('Size of Table Before Filtering: ' + str(len(data[key])) + ' Observations')
+                print('Size of Table After Filtering: ' + str(len(resulting[key])) + ' Observations')
+                print('\n')
+
+        # It will return the filtered database
+        return resulting
 
 
 

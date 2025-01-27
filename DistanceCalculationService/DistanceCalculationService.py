@@ -201,7 +201,7 @@ class distanceCalculationService:
 
     # 1. Distance as the crow flies from Address to the center
     # Implement in the next episode
-    def computeDistanceFromCityCentre (self, type = 'ACF'):
+    def computeDistanceFromCityCentre (self, type = 'ACF', subsample = 'all'):
 
         # Load the Houses Coordinates
         # Instantiate the Database
@@ -215,8 +215,14 @@ class distanceCalculationService:
         # Instantiate the DB
         database = d.Database(database_user, database_password, database_port, database_db)
         # Get the geo database
-        geoData = database.getDataFromLocalDatabase("geoData_" + self.city + "").dropna().drop_duplicates().reset_index(drop=True)
+        geoData = database.getDataFromLocalDatabase("geoData_" + self.city + "").dropna().drop_duplicates(subset = 'Address').reset_index(drop=True)
         geoData = self.filterForCityBoundaries(geoData)
+
+        # Exclude already Processed Addresses (to avoid long calculations, and preserve the number of API requests)
+        geoData = database.excludeAlreadyProcessedData(geoData, db_name, 'Address', logs = True)
+        # Take a subsample if required
+        if subsample != 'all':
+            geoData = geoData[0:subsample]
 
         # City centre computed as the priciest area on house prices
 
@@ -256,15 +262,16 @@ class distanceCalculationService:
             # Logs and check
             if 'time' in type:
                 print(str(round((i / len(geoData['Latitude'])) * 100, 2)) + '% - ' +
-                      'Computing time from the city centre for Adress: ' + geoData['Address'][i] + ' - City: ' +
+                      'Computing time from the city centre for Address: ' + geoData['Address'][i] + ' - City: ' +
                       self.city + ' - Time: ' + str(round(np.min(distances), 2)) + ' minutes')
             else:
                 print(str(round((i / len(geoData['Latitude'])) * 100, 2)) + '% - ' +
-                      'Computing Distance from the city centre for Adress: ' + geoData['Address'][i] + ' - City: ' +
+                      'Computing Distance from the city centre for Address: ' + geoData['Address'][i] + ' - City: ' +
                       self.city + ' - Distance: ' + str(round(np.min(distances), 2)) + ' km')
 
         # Concat the house coordinated with the distance from city centre
-        geoDataWithDist = pd.concat([geoData[['ID', 'Address']], pd.DataFrame(minimumDistance).set_axis(['Distance' + type + ' from Center'], axis=1)], axis=1)
+        geoDataWithDist = pd.concat([geoData[['ID', 'Address', 'Latitude', 'Longitude']],
+                                     pd.DataFrame(minimumDistance).set_axis(['Distance ' + type + ' from Center'], axis=1)], axis=1)
 
         # Save in the Database, if not existing, concatenate otherwise
         allTables = database.getAllTablesInDatabase()
