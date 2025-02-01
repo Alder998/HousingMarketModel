@@ -1,5 +1,7 @@
 # Class to process data to compute how dangerous a street is
+import pickle
 
+from gensim.models import Word2Vec
 from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
@@ -90,12 +92,16 @@ class areaDangerProcessing:
 
         return encodedAdressData
 
-    def trainTestSplit (self, data, test_size=0.20):
+    def trainTestSplit (self, data, test_size=0.20, model="bert-base-uncased"):
 
         # The data we receive here is a dictionary of tensors and output
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            data['Embedding'], data['Output'], test_size=test_size, random_state=42, stratify=data['Output'])
+        if model == 'Word2Vec':
+            X_train, X_test, y_train, y_test = train_test_split(
+                data['Embedding'][0], data['Output'][0], test_size=test_size, random_state=42, stratify=data['Output'][0])
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                data['Embedding'], data['Output'], test_size=test_size, random_state=42, stratify=data['Output'])
 
         # Verify train and test set distribution
         dataOutput_train = pd.Series(y_train)
@@ -130,14 +136,24 @@ class areaDangerProcessing:
         dataRaw = pd.concat([df for df in dataRaw], axis = 0).reset_index(drop=True)
 
         step1 = self.createBinaryCrimeDataset(dataRaw, subsample=subsample)
-        path = "embeddings_sentences_" + returnType.lower() + ".pt"
+        if model != 'Word2Vec':
+            path = "embeddings_sentences_" + returnType.lower() + ".pt"
+        else:
+            # Load Word2Vec Model
+            path = "embeddings_sentences_W2V"
+
         if os.path.exists(path):
             print('Loading data...')
-            loaded_data = torch.load(path)
-            step2 = self.trainTestSplit(loaded_data, test_size)
+            if model != 'Word2Vec':
+                loaded_data = torch.load(path)
+            else:
+                # Load the Word2Vec Model
+                with open("word2vec_embeddings.pkl", "rb") as f:
+                    loaded_data = pickle.load(f)
+            step2 = self.trainTestSplit(loaded_data, test_size, model=model)
         else:
             step1_1 = dm.areaDangerModel().encodeTextVariablesInDataset(step1, model, returnType)
-            step2 = self.trainTestSplit(step1_1, test_size)
+            step2 = self.trainTestSplit(step1_1, test_size, model=model)
 
         return step2
 

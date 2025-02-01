@@ -1,4 +1,5 @@
 # Class to process data to compute how dangerous a street is
+import pickle
 
 from sqlalchemy import create_engine
 import pandas as pd
@@ -12,62 +13,97 @@ import areaDangerDataProcessing as dp
 from transformers import BertTokenizer, BertModel
 import torch
 import tensorflow as tf
+import gensim
+from gensim.models import Word2Vec
 
 class areaDangerModel:
     def __init__(self):
         pass
 
+    # Utils-like method for Word2Vec
+    def text_to_embedding(self, text, model, vector_size=100):
+        words = text.lower().split()
+        vectors = [model.wv[word] for word in words if word in model.wv]
+
+        if len(vectors) == 0:
+            return np.zeros(vector_size)  # If empty, return a 0 array
+
+        # Get the mean vectors
+        return np.mean(vectors, axis=0)
+
     def encodeTextVariablesInDataset (self, dataset, model="bert-base-uncased", returnType='cls', predict=False):
 
-        # Load the Model, that in our case is a BERT-uncased
-        model_name = model  # Pre-trained BERT model
-        tokenizer = BertTokenizer.from_pretrained(model_name)
-        model = BertModel.from_pretrained(model_name)
-
-        # Define the base of the sequence Array
-        sentences = list(dataset['Article'])
-        outputs = list(dataset['Crime'])
-
         sentencesWithOutput = {"Embedding": [], 'Output': []}
-        for i, (singleSentence, output) in enumerate(zip(sentences, outputs)):
+        if model != 'Word2Vec':
+            # Load the Model, that in our case is a BERT-uncased
+            model_name = model  # Pre-trained BERT model
+            tokenizer = BertTokenizer.from_pretrained(model_name)
+            model = BertModel.from_pretrained(model_name)
 
-            # Logging
-            print('Applying LLM sentence processing...', round(i/len(list(dataset['Article'])) * 100, 2), '%')
+            # Define the base of the sequence Array
+            sentences = list(dataset['Article'])
+            outputs = list(dataset['Crime'])
 
-            # Step 3: Tokenize the sentences and convert them to input tensors
-            tokenized_inputs = tokenizer(singleSentence, padding=True, truncation=True, return_tensors="pt")
+            for i, (singleSentence, output) in enumerate(zip(sentences, outputs)):
 
-            # Generate the Embedding for BERT
-            with torch.no_grad():
-                embeddedSentence = model(**tokenized_inputs)
+                # Logging
+                print('Applying LLM sentence processing...', round(i/len(list(dataset['Article'])) * 100, 2), '%')
 
-            sentenceEmbedding = np.full([1, 768], 0)
-            if returnType == 'cls':
-                sentenceEmbedding = embeddedSentence.last_hidden_state[:, 0, :]
-            if returnType == 'mean':
-                # Alternative - Use the mean of the tokens as token itself
-                sentenceEmbedding = embeddedSentence.last_hidden_state.mean(dim=1)
-            sentencesWithOutput['Embedding'].append(sentenceEmbedding)
-            sentencesWithOutput['Output'].append(outputs[i])
+                # Step 3: Tokenize the sentences and convert them to input tensors
+                tokenized_inputs = tokenizer(singleSentence, padding=True, truncation=True, return_tensors="pt")
 
-        # Save the dictionary
-        if predict == False:
-            torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
+                # Generate the Embedding for BERT
+                with torch.no_grad():
+                    embeddedSentence = model(**tokenized_inputs)
 
-        # Verify some results
-        print(f"Number of Elements 'Embedding': {len(sentencesWithOutput['Embedding'])}")
-        print(f"Number of Elements in 'Output': {len(sentencesWithOutput['Output'])}")
-        print(f"Shape of the First Embedding: {sentencesWithOutput['Embedding'][0].shape}")  # should be torch.Size([768])
+                sentenceEmbedding = np.full([1, 768], 0)
+                if returnType == 'cls':
+                    sentenceEmbedding = embeddedSentence.last_hidden_state[:, 0, :]
+                if returnType == 'mean':
+                    # Alternative - Use the mean of the tokens as token itself
+                    sentenceEmbedding = embeddedSentence.last_hidden_state.mean(dim=1)
+                sentencesWithOutput['Embedding'].append(sentenceEmbedding)
+                sentencesWithOutput['Output'].append(outputs[i])
+
+            # Save the dictionary
+            if predict == False:
+                torch.save(sentencesWithOutput, "embeddings_sentences_" + returnType.lower() + ".pt")
+
+            # Verify some results
+            print(f"Number of Elements 'Embedding': {len(sentencesWithOutput['Embedding'])}")
+            print(f"Number of Elements in 'Output': {len(sentencesWithOutput['Output'])}")
+            print(f"Shape of the First Embedding: {sentencesWithOutput['Embedding'][0].shape}")  # should be torch.Size([768])
+
+        else:
+            # Implement a simple Word2Vec Model
+            # Tokeninze the data
+            dataset['tokenized'] = dataset['Article'].apply(lambda x: x.lower().split())
+            # Train the Word2Vec
+            word2vec_model = Word2Vec(sentences=dataset['tokenized'], vector_size=100, window=5, min_count=1, workers=4)
+
+            dataset['embedding'] = dataset['Article'].apply(lambda x: self.text_to_embedding(x, word2vec_model))
+
+            # Get the embedding in the same shape as we did for BERT
+            sentencesWithOutput['Embedding'].append(dataset['embedding'].values)
+            sentencesWithOutput['Output'].append(dataset['Crime'].values)
+            # Save the Embedding
+            with open("word2vec_embeddings.pkl", "wb") as f:
+                pickle.dump(sentencesWithOutput, f)
 
         return sentencesWithOutput
 
     # NN Model Itself, very simple one
 
-    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure={'FF':[500, 500, 500], 'LSM':[]}, returnType = 'cls'):
+    def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure={'FF':[500, 500, 500], 'LSM':[]}, returnType = 'cls',
+                                     model="bert-base-uncased"):
 
         # returns: x_train, x_test, y_train, y_test
-        x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
-        x_test = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[1]])
+        if model == "Word2Vec":
+            x_train = np.vstack(data[0])
+            x_test = np.vstack(data[1])
+        else:
+            x_train = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[0]])
+            x_test = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in data[1]])
         y_train = np.array(data[2])
         y_test = np.array(data[3])
 
