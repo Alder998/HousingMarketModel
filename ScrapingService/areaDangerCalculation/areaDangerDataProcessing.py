@@ -183,10 +183,17 @@ class areaDangerProcessing:
                 dataRaw.append(raw)
             dataForValidation = pd.concat([df for df in dataRaw], axis=0).reset_index(drop=True)
 
-            path = "embeddings_sentences_" + returnType.lower() + ".pt"
-            validationSetEmbedding = torch.load(path)
-            validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
-            validationSetEmbedding = validationSetEmbedding.astype(np.float32)
+            if model != 'Word2Vec':
+                path = "embeddings_sentences_" + returnType.lower() + ".pt"
+                validationSetEmbedding = torch.load(path)
+                validationSetEmbedding = np.vstack([tensor.squeeze(0).cpu().numpy() for tensor in validationSetEmbedding['Embedding']])
+                validationSetEmbedding = validationSetEmbedding.astype(np.float32)
+            else:
+                with open("word2vec_embeddings.pkl", "rb") as f:
+                    validationSetEmbedding = pickle.load(f)
+                # Set the format for word2Vec prediction
+                validationSetEmbedding = np.vstack(validationSetEmbedding['Embedding'][0])
+                #validationSetEmbedding = validationSetEmbedding.astype(np.float32)
         else:
             dataForValidation = database.getDataFromLocalDatabase(prediction_set)
             # Encode the Validation Set
@@ -200,7 +207,10 @@ class areaDangerProcessing:
             validationSetEmbedding = validationSetEmbedding.astype(np.float32)
 
         # Get the Saved Model
-        storedModel = tf.keras.models.load_model('CrimeModel_'+ returnType.lower() +'.h5')
+        if model != "Word2Vec":
+            storedModel = tf.keras.models.load_model('CrimeModel_'+ returnType.lower() +'.h5')
+        else:
+            storedModel = tf.keras.models.load_model('CrimeModel_W2V.h5')
 
         # Use it to predict probabilities
         modelPrediction = storedModel.predict(validationSetEmbedding)
@@ -214,7 +224,7 @@ class areaDangerProcessing:
         crimePredData = pd.concat([df for df in crimePredData], axis = 0)
 
         # Save on SQL
-        db_name = 'dangerPredictionSet_' + prediction_set
+        db_name = 'dangerPredictionSet_' + prediction_set + '_' + model
         # Always Override
         database.createTable(crimePredData, db_name)
 

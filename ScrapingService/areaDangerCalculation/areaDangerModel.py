@@ -95,10 +95,10 @@ class areaDangerModel:
     # NN Model Itself, very simple one
 
     def trainAndStoreNNModelForNews (self, data, trainingEpochs, structure={'FF':[500, 500, 500], 'LSM':[]}, returnType = 'cls',
-                                     model="bert-base-uncased"):
+                                     modelName="bert-base-uncased"):
 
         # returns: x_train, x_test, y_train, y_test
-        if model == "Word2Vec":
+        if modelName == "Word2Vec":
             x_train = np.vstack(data[0])
             x_test = np.vstack(data[1])
         else:
@@ -152,8 +152,13 @@ class areaDangerModel:
         probability_model = tf.keras.Sequential([model,tf.keras.layers.Softmax()])
 
         # Save in H5 Format
-        probability_model.save('CrimeModel_' + returnType + '.h5')
-        print('Model saved Correctly')
+        if modelName.lower() != 'word2vec':
+            model_name = 'CrimeModel_' + returnType + '.h5'
+            probability_model.save(model_name)
+        else:
+            model_name = 'CrimeModel_W2V.h5'
+            probability_model.save(model_name)
+        print('Model saved Correctly with the name of ' + model_name)
 
         return probability_model
 

@@ -10,20 +10,23 @@ returnType = 'cls'
 subsample = 0.80
 test_size = 0.30
 prediction_set = 'newsDatabase' # Possible values: 'newsDatabase' | 'crimeValidationSet'
-model="Word2Vec"
+model = "Word2Vec" # "bert-base-multilingual-cased" | "bert-base-uncased" | "Word2Vec"
 
 # Model Trainer (if not trained)
 # Models: "bert-base-multilingual-cased" | "Word2Vec"
 crimeDataForModel = dp.areaDangerProcessing().processDatasetForModel(model=model, returnType=returnType,
                                                                              subsample=subsample, test_size=test_size)
 # Train only if is not stored
-path = "CrimeModel_" + returnType.lower() + ".h5"
-if not os.path.exists(path):
-    model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=100,
-                                                    structure={'FF':[500, 500, 500, 500, 500], 'LSM':[30, 30, 30]},
-                                                    returnType=returnType, model = model)
+if model != 'Word2Vec':
+    path = "CrimeModel_" + returnType.lower() + ".h5"
 else:
-    print('Using Model' + " CrimeModel_" + returnType.lower() + ".h5...")
+    path = "CrimeModel_W2V.h5"
+if not os.path.exists(path):
+    model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=350,
+                                                    structure={'FF':[500, 500, 500, 500, 500], 'LSM':[30, 30, 30]},
+                                                    returnType=returnType, modelName = model)
+else:
+    print('Using Model' + path + "...")
 
 # Create Predictions for each different cities
 
@@ -40,7 +43,7 @@ database_db = os.getenv('DATABASE_DB')
 # Instantiate the DB
 database = d.Database(database_user, database_password, database_port, database_db)
 
-predicted = dp.areaDangerProcessing().predictDangerFromNews(model="bert-base-multilingual-cased",
+predicted = dp.areaDangerProcessing().predictDangerFromNews(model=model,
                                                         prediction_set=prediction_set, returnType=returnType)
 # 'crimeValidationSet' for validation Dataset (not processed by the model Previously)
 # 'newsDatabase_' + city for all news
