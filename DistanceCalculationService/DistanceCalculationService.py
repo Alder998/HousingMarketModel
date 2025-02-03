@@ -7,6 +7,7 @@
 # - Distance with public transports from Address to nearest limit of the city center
 # - Distance with the car from Address to the city centre
 # - Distance with the car from Address to nearest limit of the city center
+import math
 
 import pandas as pd
 import numpy as np
@@ -68,20 +69,21 @@ class distanceCalculationService:
     # Car-distance by Car (in minutes)
     def computeDistanceTimeByCar (self, coords1, coords2):
 
-        # Coords must be in format "latitude, longitude"
-        start = str(coords1[0]) + ',' + str(coords1[1])
-        end = str(coords2[0]) + ',' + str(coords2[1])
+        lat1, lon1 = coords1[0], coords1[1]
+        lat2, lon2 = coords2[0], coords2[1]
 
-        # Public instance API
-        url = f"http://router.project-osrm.org/route/v1/driving/{start};{end}?overview=false"
+        mode = "car"  # Available: "foot", "bike"
+        url = f"http://router.project-osrm.org/route/v1/{mode}/{lon1},{lat1};{lon2},{lat2}?overview=false"
 
-        # API get Requests
         response = requests.get(url)
         data = response.json()
 
-        # get the travelling time in minutes
-        travel_time_seconds = data['routes'][0]['duration']
-        travel_time_minutes = travel_time_seconds / 60
+        travel_time_minutes = math.nan
+        if "routes" in data:
+            #distance_km = data["routes"][0]["distance"] / 1000  # Converti in km
+            travel_time_minutes = data["routes"][0]["duration"] / 60  # Converti in min
+        else:
+            print("No data for selected coordinates!")
 
         return travel_time_minutes
 
