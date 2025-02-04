@@ -67,12 +67,12 @@ class distanceCalculationService:
         return distance
 
     # Car-distance by Car (in minutes)
-    def computeDistanceTimeByCar (self, coords1, coords2):
+    def computeDistanceTime (self, coords1, coords2, by='car'):
 
         lat1, lon1 = coords1[0], coords1[1]
         lat2, lon2 = coords2[0], coords2[1]
 
-        mode = "car"  # Available: "foot", "bike"
+        mode = by  # Available: "foot", "bike"
         url = f"http://router.project-osrm.org/route/v1/{mode}/{lon1},{lat1};{lon2},{lat2}?overview=false"
 
         response = requests.get(url)
@@ -251,7 +251,12 @@ class distanceCalculationService:
                     if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
                         cityCentreDistance = 0.0
                 elif type == 'car-time':
-                    cityCentreDistance = self.computeDistanceTimeByCar(coordSet, coordSet1)
+                    cityCentreDistance = self.computeDistanceTime(coordSet, coordSet1)
+                    # If a Point is in city Center, then put 0 on distance
+                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
+                        cityCentreDistance = 0.0
+                elif type == 'foot-time':
+                    cityCentreDistance = self.computeDistanceTime(coordSet, coordSet1, by = 'foot')
                     # If a Point is in city Center, then put 0 on distance
                     if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
                         cityCentreDistance = 0.0
