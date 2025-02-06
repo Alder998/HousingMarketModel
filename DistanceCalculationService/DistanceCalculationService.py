@@ -240,32 +240,36 @@ class distanceCalculationService:
             for j in range(len(cityCentrePoints)):
                 # Obtain the coordinates of each one of the boundary points of the city centre
                 coordSet1 = cityCentrePoints[j]
-                if type == 'ACF':
-                    cityCentreDistance = self.computeDistanceACF(coordSet, coordSet1)
-                    # If a Point is in city Center, then put 0 on distance
-                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
-                        cityCentreDistance = 0.0
-                elif type == 'car':
-                    cityCentreDistance = self.computeDistanceWithCar(coordSet, coordSet1)
-                    # If a Point is in city Center, then put 0 on distance
-                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
-                        cityCentreDistance = 0.0
-                elif type == 'car-time':
-                    cityCentreDistance = self.computeDistanceTime(coordSet, coordSet1)
-                    # If a Point is in city Center, then put 0 on distance
-                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
-                        cityCentreDistance = 0.0
-                elif type == 'foot-time':
-                    cityCentreDistance = self.computeDistanceTime(coordSet, coordSet1, by = 'foot')
-                    # If a Point is in city Center, then put 0 on distance
-                    if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
-                        cityCentreDistance = 0.0
-                else:
-                    raise Exception('Method Not Specified!!')
-                # Take the nearest point (the minimum out of the distance)
+                # get the nearest point to the city centre to speed up the algorithm
+                cityCentreDistance = self.computeDistanceACF(coordSet, coordSet1)
+                # If a Point is in city Center, then put 0 on distance
+                if self.getIfPointIsInCityCenter(cityCentrePoints, coordSet):
+                    cityCentreDistance = 0.0
                 distances.append(cityCentreDistance)
 
-            minimumDistance.append(np.min(distances))
+            dataWithDistances = pd.concat([pd.DataFrame(cityCentrePoints),
+                                           pd.DataFrame(distances).set_axis(['distance'], axis = 1)], axis = 1)
+            # Use the minimum point distance for benchmark
+            # Retrieve the coordinates relative to the minimum distance
+            minimumPointDistance = dataWithDistances[[0, 1]][dataWithDistances['distance'] == np.min(distances)].values
+            minimumPointDistance = minimumPointDistance.flatten().tolist()
+
+            # If every point is 0, no need to compute the distance
+            if dataWithDistances['distance'].eq(0).all():
+                cityCentreDistance = 0.0
+            else:
+                if type == 'ACF':
+                    cityCentreDistance = minimumPointDistance
+                elif type == 'car':
+                    cityCentreDistance = self.computeDistanceWithCar(coordSet, minimumPointDistance)
+                elif type == 'car-time':
+                    cityCentreDistance = self.computeDistanceTime(coordSet, minimumPointDistance)
+                elif type == 'foot-time':
+                    cityCentreDistance = self.computeDistanceTime(coordSet, minimumPointDistance, by='foot')
+                else:
+                    raise Exception('Method Not Specified!!')
+            minimumDistance.append(cityCentreDistance)
+
             # Logs and check
             if 'time' in type:
                 print(str(round((i / len(geoData['Latitude'])) * 100, 2)) + '% - ' +
