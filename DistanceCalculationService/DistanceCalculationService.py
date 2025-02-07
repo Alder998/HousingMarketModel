@@ -266,6 +266,8 @@ class distanceCalculationService:
                     cityCentreDistance = self.computeDistanceTime(coordSet, minimumPointDistance)
                 elif type == 'foot-time':
                     cityCentreDistance = self.computeDistanceTime(coordSet, minimumPointDistance, by='foot')
+                elif type == 'bike-time':
+                    cityCentreDistance = self.computeDistanceTime(coordSet, minimumPointDistance, by='bike')
                 else:
                     raise Exception('Method Not Specified!!')
             minimumDistance.append(cityCentreDistance)
