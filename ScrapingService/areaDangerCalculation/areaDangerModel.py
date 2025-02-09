@@ -153,7 +153,7 @@ class areaDangerModel:
 
         # Save in H5 Format
         if modelName.lower() != 'word2vec':
-            model_name = 'CrimeModel_' + returnType + '.h5'
+            model_name = 'CrimeModel_' + modelName + '_' + returnType + '.h5'
             probability_model.save(model_name)
         else:
             model_name = 'CrimeModel_W2V.h5'

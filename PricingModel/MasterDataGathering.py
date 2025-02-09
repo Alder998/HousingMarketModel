@@ -13,7 +13,8 @@ class MasterDataGathering:
         self.city = city
 
     # Function to get all the data
-    def getMasterDatabase(self):
+    def getMasterDatabase (self, dangerIndexPredictionDataset = "newsDatabase",
+                          dangerIndexModel = "bert-base-multilingual-cased", distanceType='car-time'):
 
         # Instantiate Database
         load_dotenv('App.env')
@@ -29,10 +30,29 @@ class MasterDataGathering:
         houses = database.getDataFromLocalDatabase("offerDetailDatabase_" + self.city)
         # Geographical Coordinates
         geo = database.getDataFromLocalDatabase("geoData_" + self.city)
-        # Danger Index (from News Model)
-        dangerIndex = database.getDataFromLocalDatabase("dangerPredictionSet_" + self.city)
-        # Distance Calculation
-        distance = database.getDataFromLocalDatabase("distanceCalculation_" + self.city)
 
-        # Remove once the distance DB has been created
-        return 0
+        # Calculated fields
+        # Danger Index (from News Model)
+        dangerIndex = database.getDataFromLocalDatabase("dangerPredictionSet_" + dangerIndexPredictionDataset + "_" +
+                                                        dangerIndexModel)
+        # Aggregate for address (multiple scores for each address)
+        dangerIndex = dangerIndex.groupby('Address', as_index=False).mean()
+
+        # Distance Calculation
+        distance = database.getDataFromLocalDatabase('DistanceCalculation_' + self.city + '_' + distanceType)
+        # Get the column that contains the word "Distance"
+        selectedColumns = []
+        for column in distance.columns:
+            if ('distance' in column.lower()) | ('address' in column.lower()):
+                selectedColumns.append(column)
+        distance = distance[selectedColumns]
+
+        # Merge the DBs
+        dataHG = pd.merge(left=houses, right=geo, left_on='Adress', right_on='Address',
+                          how='inner').drop_duplicates(subset=['Adress', 'Price']).reset_index(drop=True)
+        dataHGD = pd.merge(left=dataHG, right=dangerIndex, left_on='Address', right_on='Address',
+                          how='inner')
+        dataHGDD = pd.merge(left=dataHGD, right=distance, left_on='Address', right_on='Address',
+                          how='inner')
+
+        return dataHGDD

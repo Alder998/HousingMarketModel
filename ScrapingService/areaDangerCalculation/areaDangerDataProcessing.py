@@ -128,11 +128,12 @@ class areaDangerProcessing:
         availableCities = availableCities['table_name'].str.split('_').str[1]
         dataRaw = []
         for city in availableCities:
-            raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
-            # Concatenate with the city
-            raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis = 1),
-                             raw], axis = 1)
-            dataRaw.append(raw)
+            if city != 'newsDatabase':
+                raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
+                # Concatenate with the city
+                raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis = 1),
+                                 raw], axis = 1)
+                dataRaw.append(raw)
         dataRaw = pd.concat([df for df in dataRaw], axis = 0).reset_index(drop=True)
 
         step1 = self.createBinaryCrimeDataset(dataRaw, subsample=subsample)
@@ -176,11 +177,12 @@ class areaDangerProcessing:
             availableCities = availableCities['table_name'].str.split('_').str[1]
             dataRaw = []
             for city in availableCities:
-                raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
-                # Concatenate with the city
-                raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis=1),
-                                 raw], axis=1)
-                dataRaw.append(raw)
+                if city != 'newsDatabase':
+                    raw = database.getDataFromLocalDatabase("newsDatabase_" + city)
+                    # Concatenate with the city
+                    raw = pd.concat([pd.DataFrame(np.full(len(raw['Address']), city)).set_axis(['City'], axis=1),
+                                     raw], axis=1)
+                    dataRaw.append(raw)
             dataForValidation = pd.concat([df for df in dataRaw], axis=0).reset_index(drop=True)
 
             if model != 'Word2Vec':
@@ -208,7 +210,7 @@ class areaDangerProcessing:
 
         # Get the Saved Model
         if model != "Word2Vec":
-            storedModel = tf.keras.models.load_model('CrimeModel_'+ returnType.lower() +'.h5')
+            storedModel = tf.keras.models.load_model('CrimeModel_' + model + '_' + returnType + '.h5')
         else:
             storedModel = tf.keras.models.load_model('CrimeModel_W2V.h5')
 

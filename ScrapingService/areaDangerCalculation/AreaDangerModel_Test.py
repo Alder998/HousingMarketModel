@@ -6,23 +6,22 @@ import os
 from dotenv import load_dotenv
 from Utils import Database as d
 
-returnType = 'cls'
+returnType = 'mean'
 subsample = 0.80
 test_size = 0.30
 prediction_set = 'newsDatabase' # Possible values: 'newsDatabase' | 'crimeValidationSet'
-model = "Word2Vec" # "bert-base-multilingual-cased" | "bert-base-uncased" | "Word2Vec"
+model = "bert-base-multilingual-cased" # "bert-base-multilingual-cased" | "bert-base-uncased" | "Word2Vec"
 
 # Model Trainer (if not trained)
-# Models: "bert-base-multilingual-cased" | "Word2Vec"
 crimeDataForModel = dp.areaDangerProcessing().processDatasetForModel(model=model, returnType=returnType,
                                                                              subsample=subsample, test_size=test_size)
 # Train only if is not stored
 if model != 'Word2Vec':
-    path = "CrimeModel_" + returnType.lower() + ".h5"
+    path = 'CrimeModel_' + model + '_' + returnType + '.h5'
 else:
     path = "CrimeModel_W2V.h5"
 if not os.path.exists(path):
-    model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=350,
+    model = dm.areaDangerModel().trainAndStoreNNModelForNews(crimeDataForModel, trainingEpochs=100,
                                                     structure={'FF':[500, 500, 500, 500, 500], 'LSM':[30, 30, 30]},
                                                     returnType=returnType, modelName = model)
 else:
