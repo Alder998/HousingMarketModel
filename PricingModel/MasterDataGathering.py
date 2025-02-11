@@ -1,5 +1,6 @@
 # Class to get Master data, i.e., House Database, Geo Database, Danger Index from News, Distance From Center Database,
 # And Parameter Selection
+import math
 
 import pandas as pd
 from Utils import Database as d
@@ -54,5 +55,30 @@ class MasterDataGathering:
                           how='inner')
         dataHGDD = pd.merge(left=dataHGD, right=distance, left_on='Address', right_on='Address',
                           how='inner')
+        dataHGDD = self.encodeStringVariables(dataHGDD)
 
         return dataHGDD
+
+    # Function to encode the string Variables into Categorical ones
+    def encodeStringVariables (self, data):
+
+        # Get the columns that can be string
+        stringColumns = []
+        for col in data.columns:
+            checkString = pd.to_numeric(data[col], errors='coerce')
+            if checkString.eq(math.nan).any():
+                stringColumns.append(col)
+            else:
+                data[col] = pd.to_numeric(data[col], errors='coerce')
+
+        for col1 in stringColumns:
+            column = data[col1]
+            # sort the values to preserve the order
+            column = column.sort_values(ascending = True)
+            for i, uniqueValue in enumerate(column.unique()):
+                data.loc[data[column] == uniqueValue, col1] = i
+
+        return data
+
+
+
