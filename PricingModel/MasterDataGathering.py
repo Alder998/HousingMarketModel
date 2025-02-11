@@ -55,6 +55,8 @@ class MasterDataGathering:
                           how='inner')
         dataHGDD = pd.merge(left=dataHGD, right=distance, left_on='Address', right_on='Address',
                           how='inner')
+        # Drop the link column
+        dataHGDD = dataHGDD.drop(columns=['link'])
         dataHGDD = self.encodeStringVariables(dataHGDD)
 
         return dataHGDD
@@ -66,7 +68,7 @@ class MasterDataGathering:
         stringColumns = []
         for col in data.columns:
             checkString = pd.to_numeric(data[col], errors='coerce')
-            if checkString.eq(math.nan).any():
+            if checkString.isna().any():
                 stringColumns.append(col)
             else:
                 data[col] = pd.to_numeric(data[col], errors='coerce')
@@ -76,7 +78,7 @@ class MasterDataGathering:
             # sort the values to preserve the order
             column = column.sort_values(ascending = True)
             for i, uniqueValue in enumerate(column.unique()):
-                data.loc[data[column] == uniqueValue, col1] = i
+                data.loc[data[col1] == uniqueValue, col1] = i
 
         return data
 
