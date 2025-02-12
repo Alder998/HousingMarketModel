@@ -6,7 +6,6 @@ city = 'Milano'
 masterData = m.MasterDataGathering(city = city).getMasterDatabase(dangerIndexPredictionDataset = "newsDatabase",
                                                          dangerIndexModel = "bert-base-multilingual-cased",
                                                          distanceType = "car-time")
-print(masterData['Area'])
 # DB Statistics
 print('\n')
 print('--- CITY: ' + city + '---')

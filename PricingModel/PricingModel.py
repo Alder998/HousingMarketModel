@@ -38,8 +38,10 @@ class PricingModel:
                       loss=tf.keras.losses.MeanSquaredError(),
                       metrics=['mae'])
         # Now, Train the Model
-        print(x_train.shape)
-        print(y_train.shape)
+
+        # Convert to float (variables converted from string can be considered objet and not used by the model)
+        x_train = np.array(x_train, dtype=np.float32)
+        y_train = np.array(y_train, dtype=np.float32)
 
         model.fit(x_train, y_train, epochs=trainingEpochs)
 
